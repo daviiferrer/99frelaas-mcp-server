@@ -62,7 +62,9 @@ test("skills catalog helpers", async () => {
     getCuratedSkillStacks,
     validateSkillIds,
     assertValidSkillIds,
-    getSkillCatalogResourceJson,
+    getSkillCatalogIndexResourceJson,
+    getSkillCatalogPage,
+    getSkillCatalogPageResourceJson,
     getSkillStacksResourceMarkdown,
     getSkillSelectionGuideMarkdown,
   } = require("../dist/domain/skillsCatalog.js");
@@ -86,7 +88,11 @@ test("skills catalog helpers", async () => {
   assert.deepEqual(assertValidSkillIds([960, 1282]), [960, 1282]);
   assert.throws(() => assertValidSkillIds([999999]));
 
-  assert.match(getSkillCatalogResourceJson(), /curatedStacks/);
+  const page = getSkillCatalogPage({ limit: 3 });
+  assert.equal(page.items.length, 3);
+  assert.equal(page.hasMore, true);
+  assert.match(getSkillCatalogIndexResourceJson(), /curatedStacks/);
+  assert.match(getSkillCatalogPageResourceJson({ query: "docker", limit: 5 }), /Docker/);
   assert.match(getSkillStacksResourceMarkdown(), /Curated Skill Stacks/);
   assert.match(getSkillSelectionGuideMarkdown(), /Keep the profile focused/);
 });

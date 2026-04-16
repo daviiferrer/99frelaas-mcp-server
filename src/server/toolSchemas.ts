@@ -10,7 +10,11 @@ export const toolSchemas = {
   auth_clearSession: z.object({}).optional().default({}),
   profile_getInterestCatalog: z.object({}).optional().default({}),
   profile_getEditState: z.object({}).optional().default({}),
-  skills_getCatalog: z.object({}).optional().default({}),
+  skills_getCatalog: z.object({
+    query: z.string().min(1).optional(),
+    offset: z.number().int().nonnegative().optional().default(0),
+    limit: z.number().int().positive().max(100).optional().default(50),
+  }).optional().default({}),
   skills_getStacks: z.object({}).optional().default({}),
   skills_getSelectionGuide: z.object({}).optional().default({}),
   profile_update: z.object({
@@ -134,7 +138,15 @@ export const toolInputJsonSchemas: Record<string, JsonSchema> = {
   auth_clearSession: { type: "object", properties: {}, additionalProperties: false },
   profile_getInterestCatalog: { type: "object", properties: {}, additionalProperties: false },
   profile_getEditState: { type: "object", properties: {}, additionalProperties: false },
-  skills_getCatalog: { type: "object", properties: {}, additionalProperties: false },
+  skills_getCatalog: {
+    type: "object",
+    properties: {
+      query: { type: "string", description: "Optional keyword to search the catalog." },
+      offset: { type: "number", default: 0, minimum: 0, description: "Start offset within the filtered catalog." },
+      limit: { type: "number", default: 50, minimum: 1, maximum: 100, description: "Maximum number of skills to return." },
+    },
+    additionalProperties: false,
+  },
   skills_getStacks: { type: "object", properties: {}, additionalProperties: false },
   skills_getSelectionGuide: { type: "object", properties: {}, additionalProperties: false },
   profile_update: {

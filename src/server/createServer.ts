@@ -5,6 +5,7 @@ import {
   GetPromptRequestSchema,
   ListToolsRequestSchema,
   ListPromptsRequestSchema,
+  ListResourceTemplatesRequestSchema,
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
@@ -21,10 +22,20 @@ import { AdapterError } from "../domain/errors";
 import { RateLimiter } from "../security/rateLimiter";
 import { AuditLogStore } from "../storage/auditLogStore";
 import { CacheStore } from "../storage/cacheStore";
-import { getProductPrompt, listProductPrompts, listProductResources, readProductResource } from "./productSurface";
+import {
+  getProductPrompt,
+  listProductPrompts,
+  listProductResourceTemplates,
+  listProductResources,
+  readProductResource,
+} from "./productSurface";
 import { toolInputJsonSchemas, toolSchemas } from "./toolSchemas";
 import { sha256Hex } from "../utils/text";
-import { getSkillCatalogResourceJson, getSkillSelectionGuideMarkdown, getSkillStacksResourceMarkdown } from "../domain/skillsCatalog";
+import {
+  getSkillCatalogPage,
+  getSkillSelectionGuideMarkdown,
+  getSkillStacksResourceMarkdown,
+} from "../domain/skillsCatalog";
 
 type ToolInputName = keyof typeof toolSchemas;
 
@@ -52,7 +63,8 @@ const toolDescriptions: Record<ToolInputName, string> = {
   auth_clearSession: "Clear the currently active session.",
   profile_getInterestCatalog: "List profile interest categories and nested options. Use before profile_update when choosing interestAreaIds.",
   profile_getEditState: "Inspect current profile fields, skills, interest IDs, photo status, and completeness before changing or bidding.",
-  skills_getCatalog: "Read the full 99Freelas skill catalog for validated skillIds and profile planning.",
+  skills_getCatalog:
+    "Browse the 99Freelas skill catalog in compact pages or filtered slices for validated skillIds and profile planning.",
   skills_getStacks: "Read curated skill stacks grouped by use case before choosing profile skills.",
   skills_getSelectionGuide: "Read the skill selection guide before refining profile skills.",
   profile_update:
@@ -152,7 +164,12 @@ const executeTool = async (
       return ctx.profileAdapter.getEditState();
     }
     case "skills_getCatalog": {
-      return { catalog: JSON.parse(getSkillCatalogResourceJson()) };
+      const args = toolSchemas[toolName].parse(argsRaw);
+      const result = getSkillCatalogPage(args);
+      return {
+        ...result,
+        items: result.items,
+      };
     }
     case "skills_getStacks": {
       return { markdown: getSkillStacksResourceMarkdown() };
@@ -334,6 +351,7 @@ export const createServer = (ctx: AppContext): Server => {
   server.setRequestHandler(ListPromptsRequestSchema, async () => listProductPrompts());
   server.setRequestHandler(GetPromptRequestSchema, async (request) => getProductPrompt(request.params.name, request.params.arguments));
   server.setRequestHandler(ListResourcesRequestSchema, async () => listProductResources());
+  server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: listProductResourceTemplates().resourceTemplates }));
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => readProductResource(request.params.uri));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {

@@ -166,8 +166,11 @@ test("server tools end-to-end in memory", async () => {
 
   out = parseToolText(await client.callTool({ name: "profile_getInterestCatalog", arguments: {} }));
   assert.equal(Array.isArray(out.items), true);
-  out = parseToolText(await client.callTool({ name: "skills_getCatalog", arguments: {} }));
-  assert.equal(out.catalog.total >= 2000, true);
+  out = parseToolText(await client.callTool({ name: "skills_getCatalog", arguments: { limit: 10 } }));
+  assert.equal(out.total >= 2000, true);
+  assert.equal(out.items.length <= 10, true);
+  out = parseToolText(await client.callTool({ name: "skills_getCatalog", arguments: { query: "docker", limit: 5 } }));
+  assert.equal(out.items.some((item) => item.text === "Docker"), true);
   out = parseToolText(await client.callTool({ name: "skills_getStacks", arguments: {} }));
   assert.match(out.markdown, /Curated Skill Stacks/);
   out = parseToolText(await client.callTool({ name: "skills_getSelectionGuide", arguments: {} }));

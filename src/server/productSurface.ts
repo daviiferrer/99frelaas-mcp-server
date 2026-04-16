@@ -1,14 +1,17 @@
 import type {
   GetPromptResult,
   ListPromptsResult,
+  ListResourceTemplatesResult,
   ListResourcesResult,
   Prompt,
   ReadResourceResult,
   Resource,
+  ResourceTemplate,
 } from "@modelcontextprotocol/sdk/types.js";
 import {
   getCuratedSkillStacks,
-  getSkillCatalogResourceJson,
+  getSkillCatalogIndexResourceJson,
+  getSkillCatalogPageResourceJson,
   getSkillSelectionGuideMarkdown,
   getSkillStacksResourceMarkdown,
 } from "../domain/skillsCatalog";
@@ -93,7 +96,7 @@ const promptCatalog: Array<
   {
     name: "refine_profile_skills",
     description:
-      "Choose validated profile skills from the catalog and curated stacks before calling profile_update.",
+      "Choose validated profile skills from curated stacks first, then query a compact catalog slice only for the exact skillIds you need before calling profile_update.",
     arguments: [
       {
         name: "targetRole",
@@ -137,7 +140,7 @@ const resourceCatalog: Resource[] = [
   {
     uri: "resource://99freelas/skills-catalog",
     name: "skills-catalog",
-    description: "Full 99Freelas skill catalog normalized for profile validation and stack selection.",
+    description: "Compact 99Freelas skill catalog index. Use resource templates for paged or filtered slices.",
     mimeType: "application/json",
   },
   {
@@ -154,6 +157,23 @@ const resourceCatalog: Resource[] = [
   },
 ];
 
+const resourceTemplates: ResourceTemplate[] = [
+  {
+    uriTemplate: "resource://99freelas/skills-catalog/page/{offset}",
+    name: "skills-catalog-page",
+    title: "skills-catalog-page",
+    description: "Compact paginated slices of the 99Freelas skill catalog. Offset defaults to 0 and page size is capped.",
+    mimeType: "application/json",
+  },
+  {
+    uriTemplate: "resource://99freelas/skills-catalog/search/{query}",
+    name: "skills-catalog-search",
+    title: "skills-catalog-search",
+    description: "Compact filtered slices of the 99Freelas skill catalog for a query string.",
+    mimeType: "application/json",
+  },
+];
+
 const promptInstructions: Record<PromptName, string> = {
   analyze_project:
     "Start by calling projects_get. Inspect the project scope, client profile link, and signs of fit. If the client matters for decision quality, call profiles_get. If you need bidding constraints, call projects_getBidContext. Return: fit summary, risks, recommended next action, and whether to bid.",
@@ -164,7 +184,7 @@ const promptInstructions: Record<PromptName, string> = {
   monitor_account:
     "Check system_health, inbox_getDirectoryCounts, account_getSubscriptionStatus, and the latest project availability. Return a concise monitoring summary with any action items.",
   refine_profile_skills:
-    "Use the skill catalog resource and curated skill stacks to pick a validated set of skillIds before profile_update. Keep the profile focused, prefer one dominant stack, and return a short rationale for the selected stack and any supporting skills.",
+    "Use the curated skill stacks first, then query a compact catalog slice only for the exact skillIds you still need. Keep the profile focused, prefer one dominant stack, and return a short rationale for the selected stack and any supporting skills.",
 };
 
 const promptMessages: Record<PromptName, string> = {
@@ -177,15 +197,14 @@ const promptMessages: Record<PromptName, string> = {
   monitor_account:
     "You are monitoring the freelancer account for new messages, status changes, subscription state, and recent project opportunities. Start with system_health, inbox_getDirectoryCounts, and account_getSubscriptionStatus. Focus on signal, not noise.",
   refine_profile_skills:
-    "You are refining a 99Freelas profile. Read the current profile state and the skill catalog resources, choose only valid skillIds, and keep the final selection focused. For dev profiles, bias toward backend-api, frontend-ui, qa-automation, data-ai, mobile-apps, or devops-cloud before mixing stacks. Return the chosen skillIds, the stack name, and a short explanation of why this selection fits the desired positioning.",
+    "You are refining a 99Freelas profile. Read the current profile state and start from the curated stacks. Query a compact catalog slice only for the exact remaining skillIds you need, choose only valid skillIds, and keep the final selection focused. For dev profiles, bias toward backend-api, frontend-ui, qa-automation, data-ai, mobile-apps, or devops-cloud before mixing stacks. Return the chosen skillIds, the stack name, and a short explanation of why this selection fits the desired positioning.",
 };
 
 const promptResult = (name: PromptName, args: Record<string, string> | undefined): GetPromptResult => {
+  const argEntries = Object.entries(args ?? {});
   const header = [
     `Prompt: ${name}`,
-    ...(Object.entries(args ?? {}).length > 0
-      ? [`Arguments: ${Object.entries(args ?? {}).map(([key, value]) => `${key}=${value}`).join(", ")}`]
-      : []),
+    ...(argEntries.length > 0 ? [`Arguments: ${argEntries.map(([key, value]) => `${key}=${value}`).join(", ")}`] : []),
   ].join("\n");
 
   return {
@@ -243,9 +262,9 @@ Core natural flows:
 - \`inbox_sendMessage\` -> send a reply without duplicating existing text.
 - \`account_getSubscriptionStatus\` -> check whether the account is premium before exclusive bids.
 - \`profile_getInterestCatalog\` and \`profile_getEditState\` -> inspect the profile before \`profile_update\`.
-- \`skills_getCatalog\`, \`skills_getStacks\`, and \`skills_getSelectionGuide\` -> inspect the full skill catalog from the MCP itself.
-- \`resource://99freelas/skills-stacks\` -> start from a curated stack before choosing \`skillIds\`.
-- \`resource://99freelas/skills-catalog\` -> validate every \`skillIds\` entry against the full catalog.
+  - \`skills_getCatalog\`, \`skills_getStacks\`, and \`skills_getSelectionGuide\` -> inspect the skill catalog from the MCP itself; prefer stacks and compact catalog slices first.
+  - \`resource://99freelas/skills-stacks\` -> start from a curated stack before choosing \`skillIds\`.
+  - \`resource://99freelas/skills-catalog\` -> read the compact index and then use the page/search resource templates for targeted lookups.
 
 Operational notes:
 
@@ -253,7 +272,7 @@ Operational notes:
 - Always prefer read-only inspection before destructive actions.
 - Keep the agent loop in the consuming app, not in the MCP server.`;
     case "resource://99freelas/skills-catalog":
-      return getSkillCatalogResourceJson();
+      return getSkillCatalogIndexResourceJson();
     case "resource://99freelas/skills-stacks":
       return getSkillStacksResourceMarkdown();
     case "resource://99freelas/skills-selection-guide":
@@ -263,7 +282,7 @@ Operational notes:
         promptCatalog.map((prompt) => ({
           name: prompt.name,
           description: prompt.description,
-          arguments: prompt.arguments ?? [],
+          arguments: prompt.arguments,
         })),
         null,
         2,
@@ -279,11 +298,29 @@ Operational notes:
 
 The server is a private/local adapter for the 99Freelas platform.`;
     default:
+      if (uri.startsWith("resource://99freelas/skills-catalog/page/")) {
+        const raw = uri.slice("resource://99freelas/skills-catalog/page/".length);
+        const offset = Number(raw);
+        if (!Number.isFinite(offset) || offset < 0) {
+          throw new Error(`Unknown resource: ${uri}`);
+        }
+        return getSkillCatalogPageResourceJson({ offset });
+      }
+      if (uri.startsWith("resource://99freelas/skills-catalog/search/")) {
+        const raw = uri.slice("resource://99freelas/skills-catalog/search/".length);
+        return getSkillCatalogPageResourceJson({ query: decodeURIComponent(raw) });
+      }
       throw new Error(`Unknown resource: ${uri}`);
   }
 };
 
 const resourceMimeType = (uri: string): string => {
+  if (uri.startsWith("resource://99freelas/skills-catalog/page/")) {
+    return "application/json";
+  }
+  if (uri.startsWith("resource://99freelas/skills-catalog/search/")) {
+    return "application/json";
+  }
   const resource = resourceCatalog.find((entry) => entry.uri === uri);
   return resource?.mimeType ?? "text/plain";
 };
@@ -301,6 +338,10 @@ export const getProductPrompt = (name: string, args?: Record<string, string>): G
 
 export const listProductResources = (): ListResourcesResult => ({
   resources: resourceCatalog,
+});
+
+export const listProductResourceTemplates = (): ListResourceTemplatesResult => ({
+  resourceTemplates,
 });
 
 export const readProductResource = (uri: string): ReadResourceResult => ({

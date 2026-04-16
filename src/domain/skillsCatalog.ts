@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { decodeHtmlEntities } from "../utils/text";
 import { AdapterError } from "./errors";
 
 export type SkillCatalogEntry = {
@@ -22,6 +23,7 @@ export type CuratedSkillStack = {
 };
 
 const catalogCache = new Map<string, SkillCatalogEntry[]>();
+const MAX_PAGE_SIZE = 100;
 
 const curatedStackDefinitions: Array<{
   key: string;
@@ -88,6 +90,15 @@ const catalogPaths = [
 
 const stripBom = (value: string): string => value.replace(/^\uFEFF/, "");
 
+const normalizeForSearch = (value: string): string =>
+  decodeHtmlEntities(value)
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
+
+const clampPageSize = (value: number): number => Math.max(1, Math.min(MAX_PAGE_SIZE, value));
+
 export const loadSkillCatalog = (paths: string[] = catalogPaths): SkillCatalogEntry[] => {
   for (const catalogPath of paths) {
     if (catalogCache.has(catalogPath)) {
@@ -114,6 +125,49 @@ export const loadSkillCatalog = (paths: string[] = catalogPaths): SkillCatalogEn
 
 export const getSkillById = (skillId: number): SkillCatalogEntry | undefined =>
   loadSkillCatalog().find((entry) => entry.value === skillId);
+
+export const getSkillCatalogPage = (input?: {
+  query?: string;
+  offset?: number;
+  limit?: number;
+}): {
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+  nextOffset?: number;
+  query?: string;
+  items: SkillCatalogEntry[];
+} => {
+  const catalog = loadSkillCatalog();
+  const query = input?.query?.trim();
+  const offset = Math.max(0, input?.offset ?? 0);
+  const limit = clampPageSize(input?.limit ?? 50);
+
+  const filtered = query
+    ? catalog.filter((entry) => {
+        const needle = normalizeForSearch(query);
+        const haystack = normalizeForSearch(entry.text);
+        if (!needle) return true;
+        if (haystack === needle) return true;
+        if (haystack.startsWith(needle)) return true;
+        return haystack.includes(needle);
+      })
+    : catalog;
+
+  const items = filtered.slice(offset, offset + limit);
+  const nextOffset = offset + items.length;
+
+  return {
+    total: filtered.length,
+    offset,
+    limit,
+    hasMore: nextOffset < filtered.length,
+    nextOffset: nextOffset < filtered.length ? nextOffset : undefined,
+    query: query || undefined,
+    items,
+  };
+};
 
 export const normalizeSkillIds = (skillIds: number[]): number[] => {
   const seen = new Set<number>();
@@ -164,15 +218,35 @@ export const getCuratedSkillStacks = (): CuratedSkillStack[] => {
   });
 };
 
-export const getSkillCatalogResourceJson = (): string =>
+export const getSkillCatalogIndexResourceJson = (): string =>
   JSON.stringify(
     {
       total: loadSkillCatalog().length,
-      catalog: loadSkillCatalog(),
-      curatedStacks: getCuratedSkillStacks(),
-      validation: {
-        rule: "skillIds must exist in the 99Freelas skill catalog and must be unique integers",
+      curatedStacks: getCuratedSkillStacks().map((stack) => ({
+        key: stack.key,
+        title: stack.title,
+        description: stack.description,
+        recommendedFor: stack.recommendedFor,
+        skillCount: stack.skills.length,
+      })),
+      usage: {
+        defaultPath: "Use skills_getStacks first, then skills_getCatalog with query/offset/limit for targeted lookup.",
+        validationRule: "skillIds must exist in the catalog and be unique integers.",
       },
+    },
+    null,
+    2,
+  );
+
+export const getSkillCatalogPageResourceJson = (input?: {
+  query?: string;
+  offset?: number;
+  limit?: number;
+}): string =>
+  JSON.stringify(
+    {
+      ...getSkillCatalogPage(input),
+      note: "Compact page of the 99Freelas skill catalog. Use targeted queries to avoid loading the full catalog.",
     },
     null,
     2,

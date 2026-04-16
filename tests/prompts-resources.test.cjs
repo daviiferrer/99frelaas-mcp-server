@@ -73,11 +73,15 @@ test("prompts and resources are exposed", async () => {
   assert.match(bareMonitorPrompt.messages[0].content.text, /Prompt: monitor_account/);
 
   const refinePrompt = await client.getPrompt({ name: "refine_profile_skills", arguments: { targetRole: "dev", focusStack: "backend-api" } });
-  assert.match(refinePrompt.messages[0].content.text, /skill catalog resources/);
+  assert.match(refinePrompt.messages[0].content.text, /compact catalog slice/);
 
   const resources = await client.listResources();
   assert.equal(resources.resources.length >= 7, true);
   assert.equal(resources.resources.some((resource) => resource.uri === "resource://99freelas/server-manifest"), true);
+
+  const resourceTemplates = await client.listResourceTemplates();
+  assert.equal(resourceTemplates.resourceTemplates.some((template) => template.uriTemplate === "resource://99freelas/skills-catalog/page/{offset}"), true);
+  assert.equal(resourceTemplates.resourceTemplates.some((template) => template.uriTemplate === "resource://99freelas/skills-catalog/search/{query}"), true);
 
   const manifest = await client.readResource({ uri: "resource://99freelas/server-manifest" });
   assert.equal(manifest.contents[0].mimeType, "application/json");
@@ -100,6 +104,16 @@ test("prompts and resources are exposed", async () => {
   const quickstart = await client.readResource({ uri: "resource://99freelas/quickstart" });
   assert.equal(quickstart.contents[0].mimeType, "text/markdown");
   assert.match(quickstart.contents[0].text, /Quickstart/);
+  const skillsPage = await client.readResource({ uri: "resource://99freelas/skills-catalog/page/0" });
+  assert.equal(skillsPage.contents[0].mimeType, "application/json");
+  assert.match(skillsPage.contents[0].text, /Compact page/);
+  const skillsSearch = await client.readResource({ uri: "resource://99freelas/skills-catalog/search/docker" });
+  assert.equal(skillsSearch.contents[0].mimeType, "application/json");
+  assert.match(skillsSearch.contents[0].text, /Docker/);
+  await assert.rejects(
+    () => client.readResource({ uri: "resource://99freelas/skills-catalog/page/-1" }),
+    /Unknown resource/,
+  );
 
   await assert.rejects(() => client.getPrompt({ name: "missing_prompt", arguments: {} }), /Unknown prompt/);
   await assert.rejects(() => client.readResource({ uri: "resource://99freelas/unknown" }), /Unknown resource/);
