@@ -18,7 +18,13 @@ import {
 
 const BASE_URL = process.env.NINETY_NINE_BASE_URL ?? "https://www.99freelas.com.br";
 
-type PromptName = "analyze_project" | "draft_proposal" | "reply_inbox" | "monitor_account" | "refine_profile_skills";
+type PromptName =
+  | "analyze_project"
+  | "draft_proposal"
+  | "reply_inbox"
+  | "monitor_account"
+  | "refine_profile_skills"
+  | "review_99freelas_policies";
 
 const promptCatalog: Array<
   Prompt & {
@@ -110,6 +116,12 @@ const promptCatalog: Array<
       },
     ],
   },
+  {
+    name: "review_99freelas_policies",
+    description:
+      "Read the platform safety policy summary before proposing, replying, or updating profile data.",
+    arguments: [],
+  },
 ];
 
 const resourceCatalog: Resource[] = [
@@ -155,6 +167,12 @@ const resourceCatalog: Resource[] = [
     description: "Short guide for choosing and validating profile skills.",
     mimeType: "text/markdown",
   },
+  {
+    uri: "resource://99freelas/policies-summary",
+    name: "policies-summary",
+    description: "Compact safety summary from the 99Freelas terms of use and privacy policy.",
+    mimeType: "application/json",
+  },
 ];
 
 const resourceTemplates: ResourceTemplate[] = [
@@ -185,6 +203,8 @@ const promptInstructions: Record<PromptName, string> = {
     "Check system_health, inbox_getDirectoryCounts, account_getSubscriptionStatus, and the latest project availability. Return a concise monitoring summary with any action items.",
   refine_profile_skills:
     "Use the curated skill stacks first, then query a compact catalog slice only for the exact skillIds you still need. Keep the profile focused, prefer one dominant stack, and return a short rationale for the selected stack and any supporting skills.",
+  review_99freelas_policies:
+    "Read the platform policy summary before proposing, replying, updating profile data, or suggesting any contact details. Return a concise checklist of forbidden actions, safe actions, and any risk flags that matter right now.",
 };
 
 const promptMessages: Record<PromptName, string> = {
@@ -198,6 +218,8 @@ const promptMessages: Record<PromptName, string> = {
     "You are monitoring the freelancer account for new messages, status changes, subscription state, and recent project opportunities. Start with system_health, inbox_getDirectoryCounts, and account_getSubscriptionStatus. Focus on signal, not noise.",
   refine_profile_skills:
     "You are refining a 99Freelas profile. Read the current profile state and start from the curated stacks. Query a compact catalog slice only for the exact remaining skillIds you need, choose only valid skillIds, and keep the final selection focused. For dev profiles, bias toward backend-api, frontend-ui, qa-automation, data-ai, mobile-apps, or devops-cloud before mixing stacks. Return the chosen skillIds, the stack name, and a short explanation of why this selection fits the desired positioning.",
+  review_99freelas_policies:
+    "You are enforcing 99Freelas safety rules. Read the policy summary first and use it before proposing, replying, or editing profile data. Never suggest contact details, off-platform payment, spam, offensive content, or policy-breaking behavior. Return a compact list of safe reminders and red flags.",
 };
 
 const promptResult = (name: PromptName, args: Record<string, string> | undefined): GetPromptResult => {
@@ -277,6 +299,41 @@ Operational notes:
       return getSkillStacksResourceMarkdown();
     case "resource://99freelas/skills-selection-guide":
       return getSkillSelectionGuideMarkdown();
+    case "resource://99freelas/policies-summary":
+      return JSON.stringify(
+        {
+          source: "99Freelas terms and privacy pages",
+          forbiddenActions: [
+            "Do not add contact details or links to profile/portfolio.",
+            "Do not request or share contact details in proposal, question, or chat.",
+            "Do not request or accept payment outside the platform.",
+            "Do not mention platform commission in the proposal text.",
+            "Do not send offensive, spammy, fraudulent, or plagiarized content.",
+          ],
+          safeActions: [
+            "Keep negotiations and delivery inside the platform.",
+            "Use the chat and proposal flow as the official record.",
+            "Prefer concise, professional, on-platform messages.",
+            "Treat profile data as public, but not contact fields.",
+          ],
+          disputeNotes: [
+            "Chat messages and attachments can be reviewed in disputes.",
+            "Scope, proposal, and on-platform communications matter most.",
+            "Non-response or off-platform negotiation increases risk.",
+          ],
+          privacyNotes: [
+            "Cookies are used to improve experience.",
+            "The platform does not guarantee safety outside its own channels.",
+            "Public profile data is accessible to visitors.",
+          ],
+          riskFlags: [
+            "Ask for approval before any action that could expose contact details.",
+            "Avoid proposing anything that implies off-platform payment or communication.",
+          ],
+        },
+        null,
+        2,
+      );
     case "resource://99freelas/prompt-catalog":
       return JSON.stringify(
         promptCatalog.map((prompt) => ({

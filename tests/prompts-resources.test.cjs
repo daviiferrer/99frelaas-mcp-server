@@ -75,6 +75,9 @@ test("prompts and resources are exposed", async () => {
   const refinePrompt = await client.getPrompt({ name: "refine_profile_skills", arguments: { targetRole: "dev", focusStack: "backend-api" } });
   assert.match(refinePrompt.messages[0].content.text, /compact catalog slice/);
 
+  const policyPrompt = await client.getPrompt({ name: "review_99freelas_policies" });
+  assert.match(policyPrompt.messages[0].content.text, /policy summary/);
+
   const resources = await client.listResources();
   assert.equal(resources.resources.length >= 7, true);
   assert.equal(resources.resources.some((resource) => resource.uri === "resource://99freelas/server-manifest"), true);
@@ -99,6 +102,9 @@ test("prompts and resources are exposed", async () => {
   const skillsGuide = await client.readResource({ uri: "resource://99freelas/skills-selection-guide" });
   assert.equal(skillsGuide.contents[0].mimeType, "text/markdown");
   assert.match(skillsGuide.contents[0].text, /Skill Selection Guide/);
+  const policiesSummary = await client.readResource({ uri: "resource://99freelas/policies-summary" });
+  assert.equal(policiesSummary.contents[0].mimeType, "application/json");
+  assert.match(policiesSummary.contents[0].text, /forbiddenActions/);
   const promptCatalog = await client.readResource({ uri: "resource://99freelas/prompt-catalog" });
   assert.equal(promptCatalog.contents[0].mimeType, "application/json");
   const quickstart = await client.readResource({ uri: "resource://99freelas/quickstart" });
