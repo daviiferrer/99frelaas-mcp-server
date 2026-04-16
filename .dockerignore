@@ -1,0 +1,25 @@
+# VCS and editor metadata
+.git
+.gitignore
+.vscode
+.idea
+
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+
+# Local runtime data and test artifacts
+.data/
+playwright-report/
+test-results/
+scratch/
+session.json
+tmp-profile-edit.html
+test_final.ts
+npm-debug.log*
+
+# Environment files
+.env
+.env.*
+!.env.example

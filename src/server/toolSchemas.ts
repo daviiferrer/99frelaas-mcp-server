@@ -1,0 +1,280 @@
+import { z } from "zod";
+
+export const toolSchemas = {
+  auth_importCookies: z.object({
+    filePath: z.string().optional(),
+    cookies: z.array(z.any()).optional(),
+    cookiesJson: z.string().optional(),
+  }),
+  auth_checkSession: z.object({}).optional().default({}),
+  auth_clearSession: z.object({}).optional().default({}),
+  profile_getInterestCatalog: z.object({}).optional().default({}),
+  profile_getEditState: z.object({}).optional().default({}),
+  skills_getCatalog: z.object({}).optional().default({}),
+  skills_getStacks: z.object({}).optional().default({}),
+  skills_getSelectionGuide: z.object({}).optional().default({}),
+  profile_update: z.object({
+    name: z.string().min(1),
+    nickname: z.string().min(1),
+    professionalTitle: z.string().min(1),
+    about: z.string().min(1),
+    professionalSummary: z.string().min(1),
+    interestAreaIds: z.array(z.number().int().positive()).default([]),
+    skillIds: z.array(z.number().int().positive()).default([]),
+    photoPresent: z.boolean().optional().default(true),
+  }),
+  projects_listCategories: z.object({}).optional().default({}),
+  projects_list: z.object({
+    categorySlug: z.string().min(1),
+    page: z.number().int().positive().default(1),
+    sort: z.enum([
+      "relevance",
+      "newest",
+      "oldest",
+      "az",
+      "za",
+      "proposals_desc",
+      "proposals_asc",
+      "interested_desc",
+      "interested_asc",
+      "remaining_desc",
+      "remaining_asc",
+      "client_rank_desc",
+      "client_rank_asc",
+      "spent_desc",
+      "spent_asc",
+    ]).optional(),
+    timeframe: z.enum(["any", "24h", "3d"]).optional(),
+  }),
+  projects_listByAvailability: z.object({
+    categorySlug: z.string().min(1),
+    page: z.number().int().positive().default(1),
+    maxPages: z.number().int().positive().max(5).optional().default(1),
+    sort: z.enum([
+      "relevance",
+      "newest",
+      "oldest",
+      "az",
+      "za",
+      "proposals_desc",
+      "proposals_asc",
+      "interested_desc",
+      "interested_asc",
+      "remaining_desc",
+      "remaining_asc",
+      "client_rank_desc",
+      "client_rank_asc",
+      "spent_desc",
+      "spent_asc",
+    ]).optional(),
+    timeframe: z.enum(["any", "24h", "3d"]).optional(),
+    delayMs: z.number().int().positive().min(1000).optional().default(1500),
+  }),
+  projects_get: z.object({
+    projectId: z.number().int().positive(),
+    projectSlug: z.string().min(1),
+  }),
+  projects_getBidContext: z.object({
+    projectId: z.number().int().positive(),
+    projectSlug: z.string().min(1),
+  }),
+  proposals_send: z.object({
+    projectId: z.number().int().positive(),
+    projectSlug: z.string().min(1).optional(),
+    offerCents: z.number().int().positive(),
+    durationDays: z.number().int().positive(),
+    proposalText: z.string().min(10),
+    promote: z.boolean().optional().default(false),
+    dryRun: z.boolean().optional().default(false),
+  }),
+  inbox_listConversations: z.object({}).optional().default({}),
+  inbox_getMessages: z.object({
+    conversationId: z.number().int().positive(),
+  }),
+  inbox_getThread: z.object({
+    conversationId: z.number().int().positive(),
+  }),
+  inbox_sendMessage: z.object({
+    conversationId: z.number().int().positive(),
+    text: z.string().min(1),
+  }),
+  inbox_getDirectoryCounts: z.object({}).optional().default({}),
+  account_getConnections: z.object({}).optional().default({}),
+  account_getDashboardSummary: z.object({}).optional().default({}),
+  account_getSubscriptionStatus: z.object({}).optional().default({}),
+  profiles_get: z.object({
+    username: z.string().min(1),
+    profileUrl: z.string().url().optional(),
+  }),
+  system_health: z.object({}).optional().default({}),
+} as const;
+
+type JsonSchema = {
+  type: "object";
+  properties: Record<string, unknown>;
+  required?: string[];
+  additionalProperties?: boolean;
+};
+
+export const toolInputJsonSchemas: Record<string, JsonSchema> = {
+  auth_importCookies: {
+    type: "object",
+    properties: {
+      filePath: { type: "string" },
+      cookies: {
+        type: "array",
+        description: "Raw exported browser cookies array. Prefer cookiesJson when the user pasted JSON text.",
+        items: { type: "object" },
+      },
+      cookiesJson: { type: "string", description: "Raw JSON string pasted/uploaded by the user. Accepts an array or { cookies: [...] }." },
+    },
+    additionalProperties: false,
+  },
+  auth_checkSession: { type: "object", properties: {}, additionalProperties: false },
+  auth_clearSession: { type: "object", properties: {}, additionalProperties: false },
+  profile_getInterestCatalog: { type: "object", properties: {}, additionalProperties: false },
+  profile_getEditState: { type: "object", properties: {}, additionalProperties: false },
+  skills_getCatalog: { type: "object", properties: {}, additionalProperties: false },
+  skills_getStacks: { type: "object", properties: {}, additionalProperties: false },
+  skills_getSelectionGuide: { type: "object", properties: {}, additionalProperties: false },
+  profile_update: {
+    type: "object",
+    properties: {
+      name: { type: "string" },
+      nickname: { type: "string" },
+      professionalTitle: { type: "string" },
+      about: { type: "string" },
+      professionalSummary: { type: "string" },
+      interestAreaIds: { type: "array", items: { type: "number" } },
+      skillIds: { type: "array", items: { type: "number" } },
+      photoPresent: { type: "boolean", default: true },
+    },
+    required: ["name", "nickname", "professionalTitle", "about", "professionalSummary"],
+    additionalProperties: false,
+  },
+  projects_listCategories: { type: "object", properties: {}, additionalProperties: false },
+  projects_list: {
+    type: "object",
+    properties: {
+      categorySlug: { type: "string" },
+      page: { type: "number", default: 1 },
+      sort: {
+        type: "string",
+        description: "Sort order from the projects page, for example newest or relevance.",
+      },
+      timeframe: {
+        type: "string",
+        description: "Publication time filter. Use 24h for recent projects, 3d for last three days, or any.",
+      },
+    },
+    required: ["categorySlug"],
+    additionalProperties: false,
+  },
+  projects_listByAvailability: {
+    type: "object",
+    properties: {
+      categorySlug: { type: "string" },
+      page: { type: "number", default: 1 },
+      maxPages: {
+        type: "number",
+        default: 1,
+        maximum: 5,
+        description: "Maximum pages to scan. Capped at 5 to avoid aggressive scraping.",
+      },
+      sort: {
+        type: "string",
+        description: "Sort order from the projects page, for example newest or relevance.",
+      },
+      timeframe: {
+        type: "string",
+        description: "Publication time filter. Use 24h for recent projects, 3d for last three days, or any.",
+      },
+      delayMs: {
+        type: "number",
+        default: 1500,
+        minimum: 1000,
+        description: "Delay between page requests. Minimum 1000ms to reduce rate-limit risk.",
+      },
+    },
+    required: ["categorySlug"],
+    additionalProperties: false,
+  },
+  projects_get: {
+    type: "object",
+    properties: { projectId: { type: "number" }, projectSlug: { type: "string" } },
+    required: ["projectId", "projectSlug"],
+    additionalProperties: false,
+  },
+  projects_getBidContext: {
+    type: "object",
+    properties: { projectId: { type: "number" }, projectSlug: { type: "string" } },
+    required: ["projectId", "projectSlug"],
+    additionalProperties: false,
+  },
+  proposals_send: {
+    type: "object",
+    properties: {
+      projectId: { type: "number" },
+      projectSlug: { type: "string", description: "Use the slug from projects_list or projects_get. It may include the numeric id." },
+      offerCents: { type: "number", description: "Offer in cents. Always compare with projects_getBidContext.minimumOfferCents first." },
+      durationDays: { type: "number", description: "Estimated delivery time in days." },
+      proposalText: { type: "string", description: "Client-facing proposal text. Do not include external contact details." },
+      promote: { type: "boolean", default: false },
+      dryRun: { type: "boolean", default: false, description: "Use true to validate payload/flow without sending a real proposal." },
+    },
+    required: ["projectId", "offerCents", "durationDays", "proposalText"],
+    additionalProperties: false,
+  },
+  inbox_listConversations: {
+    type: "object",
+    properties: {},
+    additionalProperties: false,
+  },
+  inbox_getMessages: {
+    type: "object",
+    properties: { conversationId: { type: "number" } },
+    required: ["conversationId"],
+    additionalProperties: false,
+  },
+  inbox_getThread: {
+    type: "object",
+    properties: { conversationId: { type: "number" } },
+    required: ["conversationId"],
+    additionalProperties: false,
+  },
+  inbox_sendMessage: {
+    type: "object",
+    properties: {
+      conversationId: { type: "number" },
+      text: { type: "string" },
+    },
+    required: ["conversationId", "text"],
+    additionalProperties: false,
+  },
+  inbox_getDirectoryCounts: { type: "object", properties: {}, additionalProperties: false },
+  account_getConnections: {
+    type: "object",
+    properties: {},
+    additionalProperties: false,
+  },
+  account_getDashboardSummary: {
+    type: "object",
+    properties: {},
+    additionalProperties: false,
+  },
+  account_getSubscriptionStatus: {
+    type: "object",
+    properties: {},
+    additionalProperties: false,
+  },
+  profiles_get: {
+    type: "object",
+    properties: {
+      username: { type: "string" },
+      profileUrl: { type: "string", description: "Optional full profile URL for the public contractor page." },
+    },
+    required: ["username"],
+    additionalProperties: false,
+  },
+  system_health: { type: "object", properties: {}, additionalProperties: false },
+};

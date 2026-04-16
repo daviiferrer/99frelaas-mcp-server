@@ -1,0 +1,20 @@
+services:
+  99freelas-mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: 99freelas-mcp-server:latest
+    container_name: 99freelas-mcp-server
+    init: true
+    stdin_open: true
+    tty: true
+    env_file:
+      - .env
+    environment:
+      SESSION_FILE: .data/sessions.json
+      CACHE_FILE: .data/cache.json
+      AUDIT_LOG_FILE: .data/audit.log
+      MANUAL_COOKIES_FILE: .data/manual-cookies.json
+    volumes:
+      - ./.data:/app/.data
+    restart: unless-stopped

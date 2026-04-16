@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+coverage/
+
+# Local runtime data
+.data/
+session.json
+tmp-profile-edit.html
+test_final.ts
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Tooling and test artifacts
+playwright-report/
+test-results/
+scratch/
+npm-debug.log*
+
+# Editor and OS files
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
