@@ -2,6 +2,17 @@
 
 Private/local MCP adapter for 99Freelas, built around `stdio` transport and safe, deterministic tool exposure.
 
+## Quick Install
+
+1. Clone this repository from GitHub.
+2. Open the project folder in a terminal.
+3. Run `npm install`.
+4. Copy `.env.example` to `.env`.
+5. Set `SESSION_ENCRYPTION_KEY_BASE64` with a 32-byte base64 key.
+6. Run `npm run dev`.
+
+If you want another local app to use this MCP, point it at this repo path and keep the server running through the standard `stdio` entrypoint.
+
 ## What this server is for
 
 - Private/local integration only.
@@ -98,19 +109,16 @@ The MCP does not enforce ownership, budgets, or negotiation rules. Keep that pol
 
 ## Setup
 
-1. Copy `.env.example` to `.env`.
-2. Set `SESSION_ENCRYPTION_KEY_BASE64` with a 32-byte base64 key.
-3. Install dependencies with `npm install`.
-4. Run in development with `npm run dev`.
+Use the quick install steps above for the normal path.
 
 ## Installation methods
 
 ### Local development
 
-```bash
-npm install
-npm run dev
-```
+1. Clone the repo.
+2. Run `npm install`.
+3. Configure `.env`.
+4. Run `npm run dev`.
 
 ### Docker
 
