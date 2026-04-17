@@ -19,12 +19,14 @@ test("domain errors and result helpers", async () => {
 });
 
 test("time and text helpers", async () => {
-  const { nowIso, startOfDayIso } = require("../dist/utils/time.js");
+  const { nowIso, startOfDayIso, localDateKey } = require("../dist/utils/time.js");
   const { sha256Hex } = require("../dist/utils/text.js");
   const n = nowIso();
   const d = startOfDayIso();
+  const dateKey = localDateKey(new Date("2026-04-17T03:00:00Z"), "America/Sao_Paulo");
   assert.match(n, /^\d{4}-\d{2}-\d{2}T/);
   assert.match(d, /^\d{4}-\d{2}-\d{2}T\d{2}:00:00\.000Z$/);
+  assert.match(dateKey, /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(sha256Hex("abc").length, 64);
 });
 
@@ -50,9 +52,9 @@ test("redact and encrypt", async () => {
 test("rate limiter", async () => {
   const { RateLimiter } = require("../dist/security/rateLimiter.js");
   const limiter = new RateLimiter(2);
-  limiter.consume("k");
-  limiter.consume("k");
-  assert.throws(() => limiter.consume("k"));
+  await limiter.consume("k");
+  await limiter.consume("k");
+  await assert.rejects(() => limiter.consume("k"));
 });
 
 test("skills catalog helpers", async () => {
@@ -73,7 +75,7 @@ test("skills catalog helpers", async () => {
   assert.equal(catalog.length > 1000, true);
   assert.equal(catalog.some((entry) => entry.value === 2057), true);
   assert.equal(loadSkillCatalog().length, catalog.length);
-  const defaultCatalogPath = `${process.cwd()}\\data\\99freelas-skills-catalog.json`;
+  const defaultCatalogPath = require("node:path").join(process.cwd(), "data", "99freelas-skills-catalog.json");
   assert.equal(loadSkillCatalog(["C:\\definitely-missing.json", defaultCatalogPath]).length, catalog.length);
   assert.throws(() => loadSkillCatalog(["C:\\definitely-missing.json"]));
   assert.equal(getSkillById(2057).text, "Typescript");

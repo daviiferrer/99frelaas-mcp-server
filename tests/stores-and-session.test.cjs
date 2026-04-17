@@ -82,6 +82,25 @@ test("cache store isolates dedup markers by accountId", async () => {
   assert.equal(await store.hasMessageHash("m_hash", "acc_2"), false);
 });
 
+test("cache store persists proposal daily counters by account", async () => {
+  const { CacheStore } = require("../dist/storage/cacheStore.js");
+  const store = new CacheStore();
+  const dayKey = "2026-04-17";
+  assert.equal(await store.getDailyProposalCount(dayKey, "acc_1"), 0);
+  assert.equal(await store.incrementDailyProposalCount(dayKey, "acc_1"), 1);
+  assert.equal(await store.incrementDailyProposalCount(dayKey, "acc_1"), 2);
+  assert.equal(await store.getDailyProposalCount(dayKey, "acc_1"), 2);
+  assert.equal(await store.getDailyProposalCount(dayKey, "acc_2"), 0);
+});
+
+test("cache store enforces persistent rate-limit windows", async () => {
+  const { CacheStore } = require("../dist/storage/cacheStore.js");
+  const store = new CacheStore();
+  await store.consumeRateLimit("acc_1:projects_list", 2);
+  await store.consumeRateLimit("acc_1:projects_list", 2);
+  await assert.rejects(() => store.consumeRateLimit("acc_1:projects_list", 2), /Rate limit exceeded/);
+});
+
 test("cookie store and session manager", async () => {
   const { SessionStore } = require("../dist/storage/sessionStore.js");
   const { CookieStore } = require("../dist/auth/cookieStore.js");

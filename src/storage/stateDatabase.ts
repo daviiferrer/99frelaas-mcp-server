@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdir, readFile } from "fs/promises";
 import { dirname } from "path";
 import { SessionRecord } from "../auth/authTypes";
+import { RateLimitError } from "../domain/errors";
 import { elapsedMs, getErrorMeta, logger } from "../security/logger";
 import { redactValue } from "../security/redact";
 import { nowIso } from "../utils/time";
@@ -58,6 +59,20 @@ CREATE TABLE IF NOT EXISTS message_dedupe (
   messageHash TEXT NOT NULL,
   createdAt TEXT NOT NULL,
   PRIMARY KEY (accountId, messageHash)
+);
+
+CREATE TABLE IF NOT EXISTS proposal_daily_counter (
+  accountId TEXT NOT NULL,
+  dayKey TEXT NOT NULL,
+  sentCount INTEGER NOT NULL DEFAULT 0,
+  updatedAt TEXT NOT NULL,
+  PRIMARY KEY (accountId, dayKey)
+);
+
+CREATE TABLE IF NOT EXISTS rate_limit_windows (
+  rateKey TEXT PRIMARY KEY,
+  windowStartMs INTEGER NOT NULL,
+  requestCount INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -393,6 +408,66 @@ export class StateDatabase {
   async markMessageHash(accountId: string, messageHash: string): Promise<void> {
     await this.ensureInitialized();
     this.insertMessageDedupe(accountId, messageHash, nowIso());
+  }
+
+  async getProposalDailyCount(accountId: string, dayKey: string): Promise<number> {
+    await this.ensureInitialized();
+    const row = this.db
+      .prepare("SELECT sentCount FROM proposal_daily_counter WHERE accountId = ? AND dayKey = ? LIMIT 1")
+      .get(accountId, dayKey) as { sentCount?: number } | undefined;
+    return row?.sentCount ?? 0;
+  }
+
+  async incrementProposalDailyCount(accountId: string, dayKey: string): Promise<number> {
+    await this.ensureInitialized();
+    let nextCount = 0;
+    withTransaction(this.db, () => {
+      const row = this.db
+        .prepare("SELECT sentCount FROM proposal_daily_counter WHERE accountId = ? AND dayKey = ? LIMIT 1")
+        .get(accountId, dayKey) as { sentCount?: number } | undefined;
+      nextCount = (row?.sentCount ?? 0) + 1;
+      this.db.prepare(
+        `
+          INSERT INTO proposal_daily_counter (accountId, dayKey, sentCount, updatedAt)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(accountId, dayKey) DO UPDATE SET
+            sentCount = excluded.sentCount,
+            updatedAt = excluded.updatedAt
+        `,
+      ).run(accountId, dayKey, nextCount, nowIso());
+    });
+    return nextCount;
+  }
+
+  async consumeRateLimit(rateKey: string, windowStartMs: number, perMinute: number): Promise<void> {
+    await this.ensureInitialized();
+    withTransaction(this.db, () => {
+      const row = this.db
+        .prepare("SELECT windowStartMs, requestCount FROM rate_limit_windows WHERE rateKey = ? LIMIT 1")
+        .get(rateKey) as { windowStartMs?: number; requestCount?: number } | undefined;
+
+      if (!row || row.windowStartMs !== windowStartMs) {
+        this.db.prepare(
+          `
+            INSERT INTO rate_limit_windows (rateKey, windowStartMs, requestCount)
+            VALUES (?, ?, 1)
+            ON CONFLICT(rateKey) DO UPDATE SET
+              windowStartMs = excluded.windowStartMs,
+              requestCount = excluded.requestCount
+          `,
+        ).run(rateKey, windowStartMs);
+        return;
+      }
+
+      const currentCount = row.requestCount ?? 0;
+      if (currentCount >= perMinute) {
+        throw new RateLimitError();
+      }
+
+      this.db
+        .prepare("UPDATE rate_limit_windows SET requestCount = ? WHERE rateKey = ?")
+        .run(currentCount + 1, rateKey);
+    });
   }
 
   async appendAudit(event: string, payload?: unknown): Promise<void> {

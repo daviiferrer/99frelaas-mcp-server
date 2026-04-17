@@ -328,6 +328,36 @@ test("profile adapter", async () => {
   assert.deepEqual(payload.habilidades, [1648, 1237]);
 });
 
+test("profile adapter prioritizes selected ids over full option catalogs", async () => {
+  const { ProfileAdapter } = require("../dist/adapters/profileAdapter.js");
+  const http = new FakeHttpClient([
+    htmlResponse(`
+      <input id="nome" value="A" />
+      <input id="nickname" value="b" />
+      <input id="titulo-profissional" value="c" />
+      <textarea id="descricao">d</textarea>
+      <textarea id="resumo-experiencia-profissional">e</textarea>
+
+      <label for="chk10"><input id="chk10" type="checkbox" /></label>
+      <label for="chk20"><input id="chk20" type="checkbox" checked /></label>
+
+      <select id="habilidades">
+        <option value="1">Skill One</option>
+        <option value="2">Skill Two</option>
+      </select>
+      <script>
+        var habilidadesDoFreelancer = [];
+        habilidadesDoFreelancer.push(parseInt('2'));
+      </script>
+    `),
+  ]);
+  const adapter = new ProfileAdapter(http);
+  const state = await adapter.getEditState();
+  assert.deepEqual(state.interestAreaIds, [20]);
+  assert.deepEqual(state.skillIds, [2]);
+  assert.equal(state.skillOptions.length, 2);
+});
+
 test("profile adapter rejects invalid skill ids", async () => {
   const { ProfileAdapter } = require("../dist/adapters/profileAdapter.js");
   const http = new FakeHttpClient([]);

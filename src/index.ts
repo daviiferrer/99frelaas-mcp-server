@@ -13,16 +13,19 @@ import { InboxAdapter } from "./adapters/inboxAdapter";
 import { AccountAdapter } from "./adapters/accountAdapter";
 import { ProfileAdapter } from "./adapters/profileAdapter";
 import { logger } from "./security/logger";
+import { resolveOperationTimeZone } from "./utils/time";
 
 export const buildServer = () => {
   const baseUrl = process.env.NINETY_NINE_BASE_URL ?? "https://www.99freelas.com.br";
   const ratePerMinute = Number(process.env.RATE_LIMIT_REQUESTS_PER_MINUTE ?? 60);
   const proposalsDailyLimit = Number(process.env.PROPOSALS_DAILY_LIMIT ?? 25);
+  const operationTimeZone = resolveOperationTimeZone();
 
   logger.info("server.build", {
     baseUrl,
     ratePerMinute,
     proposalsDailyLimit,
+    operationTimeZone,
     stateDbFile: process.env.STATE_DB_FILE ?? ".data/state.sqlite",
     stateDbJournalMode: process.env.STATE_DB_JOURNAL_MODE ?? "WAL",
     manualCookiesFile: process.env.MANUAL_COOKIES_FILE ?? ".data/manual-cookies.json",
@@ -36,8 +39,8 @@ export const buildServer = () => {
   const sessionStore = new SessionStore();
   const cookieStore = new CookieStore();
   const sessionManager = new SessionManager(sessionStore, cookieStore);
-  const rateLimiter = new RateLimiter(ratePerMinute);
   const cacheStore = new CacheStore();
+  const rateLimiter = new RateLimiter(ratePerMinute, cacheStore);
   const auditLog = new AuditLogStore();
   const proposalDayCounter = new Map<string, number>();
 
@@ -60,6 +63,7 @@ export const buildServer = () => {
     auditLog,
     proposalsDailyLimit,
     proposalDayCounter,
+    operationTimeZone,
   });
 };
 

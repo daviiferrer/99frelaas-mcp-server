@@ -17,6 +17,9 @@ Private/local MCP adapter for 99Freelas, built around `stdio` transport and safe
 - `auth_clearSession`
 - `profile_getInterestCatalog`
 - `profile_getEditState`
+- `skills_getCatalog`
+- `skills_getStacks`
+- `skills_getSelectionGuide`
 - `profile_update`
 - `projects_listCategories`
 - `projects_list`
@@ -42,6 +45,8 @@ Private/local MCP adapter for 99Freelas, built around `stdio` transport and safe
 - `draft_proposal`
 - `reply_inbox`
 - `monitor_account`
+- `refine_profile_skills`
+- `review_99freelas_policies`
 
 ## Resources
 
@@ -50,6 +55,15 @@ Private/local MCP adapter for 99Freelas, built around `stdio` transport and safe
 - `resource://99freelas/prompt-catalog`
 - `resource://99freelas/operating-playbook`
 - `resource://99freelas/quickstart`
+- `resource://99freelas/skills-catalog`
+- `resource://99freelas/skills-stacks`
+- `resource://99freelas/skills-selection-guide`
+- `resource://99freelas/policies-summary`
+
+Resource templates:
+
+- `resource://99freelas/skills-catalog/page/{offset}`
+- `resource://99freelas/skills-catalog/search/{query}`
 
 ## Session Management
 
@@ -60,6 +74,9 @@ The server stores authenticated cookies encrypted at rest and persists operation
 - If an authenticated tool runs without an active session, the server fails closed unless `ALLOW_MANUAL_COOKIE_FALLBACK=true`.
 - Sessions are resolved by `accountId` so the same MCP process can serve multiple accounts in parallel.
 - State lives in `STATE_DB_FILE` by default. Legacy JSON session/cache files are imported on first boot if present.
+- Proposal daily limits are persisted in SQLite per `accountId` and per operation day.
+- Rate-limit windows are persisted in SQLite per `accountId:toolName`.
+- Operation day keys default to `America/Sao_Paulo` and can be overridden with `OPERATION_TIMEZONE`.
 - `STATE_DB_JOURNAL_MODE` defaults to `WAL`. On Docker Desktop bind mounts (especially Windows/macOS host filesystems), prefer `DELETE` to avoid WAL/SHM startup failures.
 
 ## Multiagent contract

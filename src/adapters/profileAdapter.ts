@@ -28,10 +28,28 @@ const uniqById = <T extends { id: number }>(values: T[]): T[] => {
   });
 };
 
+const uniqNumberIds = (values: number[]): number[] => {
+  const seen = new Set<number>();
+  const normalized: number[] = [];
+  for (const value of values) {
+    if (!Number.isInteger(value) || value <= 0 || seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    normalized.push(value);
+  }
+  return normalized;
+};
+
 const extractTextAfterLabel = (html: string, pattern: RegExp): string | undefined => {
   const match = html.match(pattern);
   return match?.[1] ? decodeHtml(match[1].replace(/<[^>]+>/g, "").trim()) : undefined;
 };
+
+const parseScriptedNumericPushes = (html: string, pattern: RegExp): number[] =>
+  uniqNumberIds(
+    Array.from(html.matchAll(pattern)).map((match) => Number(match[1])),
+  );
 
 const parseInterestCatalog = (html: string): Array<{ title: string; items: string[] }> =>
   Array.from(html.matchAll(/<h2 class="item-title">([\s\S]*?)<\/h2>\s*<div class="items"[\s\S]*?<\/div>/gi)).map((match) => {
@@ -41,6 +59,12 @@ const parseInterestCatalog = (html: string): Array<{ title: string; items: strin
       .filter((item) => item && item !== title);
     return { title, items: Array.from(new Set(items)) };
   });
+
+const normalizeForAccentInsensitiveSearch = (value: string): string =>
+  decodeHtml(value)
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
 
 export class ProfileAdapter {
   constructor(private readonly http: HttpClient) {}
@@ -67,28 +91,64 @@ export class ProfileAdapter {
     const about = html.match(/id="descricao"[^>]*>([\s\S]*?)<\/textarea>/i)?.[1]?.trim();
     const professionalSummary = html.match(/id="resumo-experiencia-profissional"[^>]*>([\s\S]*?)<\/textarea>/i)?.[1]?.trim();
     const photoPresent = !/Clique ou arraste a sua foto aqui/i.test(html) ? true : /remover foto/i.test(html);
-    const canChangeNickname = !/Voc(?:ê|Ãª)\s+s(?:ó|Ã³)\s+pode\s+alterar\s+o\s+nickname\s+uma\s+vez/i.test(html);
+    const normalizedHtml = normalizeForAccentInsensitiveSearch(html);
+    const nicknameLockedByText =
+      /voce\s+so\s+pode\s+alterar\s+o\s+nickname\s+uma\s+vez/i.test(normalizedHtml) ||
+      /Voc(?:Ãª|ÃƒÂª)\s+s(?:Ã³|ÃƒÂ³)\s+pode\s+alterar\s+o\s+nickname\s+uma\s+vez/i.test(html);
+    const canChangeNickname = !nicknameLockedByText;
 
     const interestCatalog = parseInterestCatalog(html);
+    const interestInputMatches = Array.from(html.matchAll(/<input[^>]*id="chk(\d+)"[^>]*>/gi)).map((match) => ({
+      id: Number(match[1]),
+      isChecked: /\bchecked\b/i.test(match[0]),
+    }));
     const interestAreas = uniqById(
-      Array.from(html.matchAll(/<input[^>]*id="chk(\d+)"[^>]*>/gi)).map((match) => {
-        const id = Number(match[1]);
+      interestInputMatches.map((match) => {
+        const id = Number(match.id);
         const label =
           extractTextAfterLabel(html, new RegExp(`<label[^>]*for="chk${id}"[^>]*>([\\s\\S]*?)<\\/label>`, "i")) ??
           extractTextAfterLabel(html, new RegExp(`<label[^>]*>([\\s\\S]*?)<input[^>]*id="chk${id}"`, "i")) ??
-          `Área ${id}`;
+          `Area ${id}`;
         return { id, label };
       }),
     );
-    const interestAreaIds = interestAreas.map((item) => item.id);
+    const checkedInterestAreaIds = uniqNumberIds(
+      interestInputMatches
+        .filter((match) => match.isChecked)
+        .map((match) => match.id),
+    );
+    const scriptedInterestAreaIds = parseScriptedNumericPushes(
+      html,
+      /NineNineFreelas\.infoUsuario\.areasInteresse\.push\(\s*parseInt\('(\d+)'\)\s*\)/gi,
+    );
+    const selectedInterestAreaIds = uniqNumberIds([...checkedInterestAreaIds, ...scriptedInterestAreaIds]);
+    const interestAreaIds =
+      selectedInterestAreaIds.length > 0
+        ? selectedInterestAreaIds
+        : interestAreas.map((area) => area.id);
 
+    const skillOptionMatches = Array.from(html.matchAll(/<option[^>]*value="(\d+)"[^>]*>([\s\S]*?)<\/option>/gi));
     const skillOptions = uniqById(
-      Array.from(html.matchAll(/<option[^>]*value="(\d+)"[^>]*>([\s\S]*?)<\/option>/gi)).map((match) => ({
+      skillOptionMatches.map((match) => ({
         id: Number(match[1]),
         label: decodeHtml(match[2].replace(/<[^>]+>/g, "").trim()),
       })),
     );
-    const skillIds = skillOptions.map((item) => item.id);
+    const selectedSkillIds = uniqNumberIds(
+      skillOptionMatches
+        .filter((match) => /\bselected\b/i.test(match[0]))
+        .map((match) => Number(match[1])),
+    );
+    const scriptedSkillIds = parseScriptedNumericPushes(
+      html,
+      /habilidadesDoFreelancer\.push\(\s*parseInt\('(\d+)'\)\s*\)/gi,
+    );
+    const selectedSkillIdsNormalized = uniqNumberIds([...selectedSkillIds, ...scriptedSkillIds]);
+    const skillIds =
+      selectedSkillIdsNormalized.length > 0
+        ? selectedSkillIdsNormalized
+        : skillOptions.map((skill) => skill.id);
+
     const missingFields: string[] = [];
     if (!name) missingFields.push("name");
     if (!nickname) missingFields.push("nickname");

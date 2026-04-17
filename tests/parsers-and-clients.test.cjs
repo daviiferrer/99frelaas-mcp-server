@@ -181,7 +181,14 @@ test("http client cookie handling", async () => {
       ok: true,
       url: String(url),
       headers: {
-        get: (name) => (name.toLowerCase() === "set-cookie" ? "a=1; Path=/" : null),
+        get: (name) =>
+          name.toLowerCase() === "set-cookie"
+            ? "a=1; Path=/, b=2; Expires=Wed, 21 Oct 2030 07:28:00 GMT; Path=/; HttpOnly"
+            : null,
+        getSetCookie: () => [
+          "a=1; Path=/",
+          "b=2; Expires=Wed, 21 Oct 2030 07:28:00 GMT; Path=/; HttpOnly",
+        ],
       },
       arrayBuffer: async () => new ArrayBuffer(0),
     };
@@ -194,6 +201,7 @@ test("http client cookie handling", async () => {
     assert.match(cookieHeader, /x=y/);
     const cookies = client.getCookies();
     assert.ok(cookies.find((c) => c.name === "a"));
+    assert.ok(cookies.find((c) => c.name === "b" && c.httpOnly === true));
     const child = client.createChildWithCookies([{ name: "child", value: "1", domain: ".99freelas.com.br" }]);
     assert.equal(client.getCookies().some((c) => c.name === "child"), false);
     assert.equal(child.getCookies().some((c) => c.name === "child"), true);

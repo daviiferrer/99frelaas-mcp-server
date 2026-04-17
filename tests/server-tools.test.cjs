@@ -264,7 +264,8 @@ test("server tools end-to-end in memory", async () => {
   out = parseToolText(await client.callTool({ name: "system_health", arguments: {} }));
   assert.equal(out.ok, true);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const { localDateKey } = require("../dist/utils/time.js");
+  const today = localDateKey(new Date(), "America/Sao_Paulo");
   ctx.proposalDayCounter.set(`default:${today}:proposals`, ctx.proposalsDailyLimit);
   const limitHit = await client.callTool({
     name: "proposals_send",

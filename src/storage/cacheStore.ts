@@ -29,4 +29,21 @@ export class CacheStore {
     const db = await this.getStateDb();
     await db.markMessageHash(accountId, hash);
   }
+
+  async getDailyProposalCount(dayKey: string, accountId = "default"): Promise<number> {
+    const db = await this.getStateDb();
+    return db.getProposalDailyCount(accountId, dayKey);
+  }
+
+  async incrementDailyProposalCount(dayKey: string, accountId = "default"): Promise<number> {
+    const db = await this.getStateDb();
+    return db.incrementProposalDailyCount(accountId, dayKey);
+  }
+
+  async consumeRateLimit(rateKey: string, perMinute: number): Promise<void> {
+    const db = await this.getStateDb();
+    const now = Date.now();
+    const windowStartMs = now - (now % 60_000);
+    await db.consumeRateLimit(rateKey, windowStartMs, perMinute);
+  }
 }

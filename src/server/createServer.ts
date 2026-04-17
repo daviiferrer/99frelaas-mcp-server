@@ -39,6 +39,7 @@ import {
 } from "../domain/skillsCatalog";
 import { extractAuthenticatedUsernameFromHtml } from "../parsers/authIdentityParser";
 import { readResponseText } from "../clients/responseText";
+import { localDateKey, resolveOperationTimeZone } from "../utils/time";
 
 type ToolInputName = keyof typeof toolSchemas;
 
@@ -64,6 +65,7 @@ export type AppContext = {
   auditLog: AuditLogStore;
   proposalsDailyLimit: number;
   proposalDayCounter: Map<string, number>;
+  operationTimeZone?: string;
 };
 
 /* c8 ignore start */
@@ -210,6 +212,35 @@ const asToolOutput = (value: unknown, isError = false) => ({
   isError,
 });
 
+type ProposalDailyCounterStore = CacheStore & {
+  getDailyProposalCount?: (dayKey: string, accountId?: string) => Promise<number>;
+  incrementDailyProposalCount?: (dayKey: string, accountId?: string) => Promise<number>;
+};
+
+const proposalCounterKey = (accountId: string, dayKey: string): string => `${accountId}:${dayKey}:proposals`;
+
+const getDailyProposalCount = async (ctx: AppContext, accountId: string, dayKey: string): Promise<number> => {
+  const store = ctx.cacheStore as ProposalDailyCounterStore;
+  if (typeof store.getDailyProposalCount === "function") {
+    return store.getDailyProposalCount(dayKey, accountId);
+  }
+  return ctx.proposalDayCounter.get(proposalCounterKey(accountId, dayKey)) ?? 0;
+};
+
+const incrementDailyProposalCount = async (
+  ctx: AppContext,
+  accountId: string,
+  dayKey: string,
+  fallbackCurrentCount: number,
+): Promise<void> => {
+  const store = ctx.cacheStore as ProposalDailyCounterStore;
+  if (typeof store.incrementDailyProposalCount === "function") {
+    await store.incrementDailyProposalCount(dayKey, accountId);
+    return;
+  }
+  ctx.proposalDayCounter.set(proposalCounterKey(accountId, dayKey), fallbackCurrentCount + 1);
+};
+
 const executeTool = async (
   ctx: AppContext,
   toolName: ToolInputName,
@@ -218,7 +249,7 @@ const executeTool = async (
   const accountId = resolveAccountId(argsRaw);
   const agentId = resolveAgentId(argsRaw);
   logger.info("tool.call", { toolName, accountId, agentId });
-  ctx.rateLimiter.consume(`${accountId}:${toolName}`);
+  await ctx.rateLimiter.consume(`${accountId}:${toolName}`);
 
   switch (toolName) {
     case "auth_importCookies": {
@@ -331,9 +362,9 @@ const executeTool = async (
     case "proposals_send": {
       const scoped = await getScopedServices(ctx, accountId);
       const args = toolSchemas[toolName].parse(argsRaw);
-      const day = new Date().toISOString().slice(0, 10);
-      const accountDayKey = `${accountId}:${day}:proposals`;
-      const sentToday = ctx.proposalDayCounter.get(accountDayKey) ?? 0;
+      const operationTimeZone = ctx.operationTimeZone ?? resolveOperationTimeZone();
+      const day = localDateKey(new Date(), operationTimeZone);
+      const sentToday = await getDailyProposalCount(ctx, accountId, day);
       if (sentToday >= ctx.proposalsDailyLimit) {
         throw new AdapterError("Daily proposals limit reached", "PROPOSALS_DAILY_LIMIT");
       }
@@ -355,7 +386,7 @@ const executeTool = async (
       const result = await scoped.proposalsAdapter.send(args);
       if (!args.dryRun && result.ok) {
         await ctx.cacheStore.markProposal(args.projectId, accountId);
-        ctx.proposalDayCounter.set(accountDayKey, sentToday + 1);
+        await incrementDailyProposalCount(ctx, accountId, day, sentToday);
       }
       logger.info("tool.result", { toolName, accountId, ok: result.ok, projectId: args.projectId, dryRun: args.dryRun });
       await ctx.auditLog.append("proposals_send", {

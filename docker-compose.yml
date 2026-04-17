@@ -6,7 +6,9 @@
     image: 99freelas-mcp-server:latest
     container_name: 99freelas-mcp-server
     init: true
-    command: ["sh", "-lc", "touch /app/.data/server.log && tail -F /app/.data/server.log"]
+    command: ["node", "dist/index.js"]
+    stdin_open: true
+    tty: true
     env_file:
       - .env
     environment:
