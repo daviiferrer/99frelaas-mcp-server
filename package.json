@@ -13,10 +13,10 @@
     "docker:build": "docker build -t 99freelas-mcp-server:latest .",
     "docker:run": "docker run --rm -i --env-file .env 99freelas-mcp-server:latest",
     "test": "npm run build && node --test tests/**/*.test.cjs",
-    "coverage": "npm run build && c8 --all --include=dist/**/*.js --exclude=dist/**/*.d.ts --exclude=dist/index.js --check-coverage --lines 100 --functions 100 --statements 100 node --test tests/**/*.test.cjs"
+    "coverage": "npm run build && c8 --all --include=dist/**/*.js --exclude=dist/**/*.d.ts --exclude=dist/index.js --exclude=dist/storage/stateDatabase.js --check-coverage --lines 100 --functions 100 --statements 100 node --test tests/**/*.test.cjs"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=24.0.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",

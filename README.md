@@ -51,11 +51,31 @@ Private/local MCP adapter for 99Freelas, built around `stdio` transport and safe
 
 ## Session Management
 
-The server stores authenticated cookies encrypted at rest.
+The server stores authenticated cookies encrypted at rest and persists operational state in SQLite.
 
 - Export cookies from your browser.
 - Save them to `MANUAL_COOKIES_FILE` or pass them directly to `auth_importCookies`.
-- If an authenticated tool runs without an active session, the server falls back to `MANUAL_COOKIES_FILE`.
+- If an authenticated tool runs without an active session, the server fails closed unless `ALLOW_MANUAL_COOKIE_FALLBACK=true`.
+- Sessions are resolved by `accountId` so the same MCP process can serve multiple accounts in parallel.
+- State lives in `STATE_DB_FILE` by default. Legacy JSON session/cache files are imported on first boot if present.
+- `STATE_DB_JOURNAL_MODE` defaults to `WAL`. On Docker Desktop bind mounts (especially Windows/macOS host filesystems), prefer `DELETE` to avoid WAL/SHM startup failures.
+
+## Multiagent contract
+
+The harness should pass these identifiers explicitly to the MCP:
+
+- `accountId`: isolates session, cache, and daily counters.
+- `agentId`: optional correlation metadata for audit and tracing.
+
+Recommended convention examples:
+
+- `scout:*` for project discovery and read-only research.
+- `proposal:*` for proposal drafting and sending.
+- `inbox:*` for reading and replying to messages.
+- `profile:*` for profile inspection and updates.
+- `orchestrator:*` for harness-level coordination and safe overrides.
+
+The MCP does not enforce ownership, budgets, or negotiation rules. Keep that policy in the harness. The MCP only validates tool input, resolves the account-scoped session, executes the request, and returns deterministic output.
 
 ## Setup
 

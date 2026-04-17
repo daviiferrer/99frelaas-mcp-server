@@ -156,6 +156,9 @@ test("http client cookie handling", async () => {
     assert.match(cookieHeader, /x=y/);
     const cookies = client.getCookies();
     assert.ok(cookies.find((c) => c.name === "a"));
+    const child = client.createChildWithCookies([{ name: "child", value: "1", domain: ".99freelas.com.br" }]);
+    assert.equal(client.getCookies().some((c) => c.name === "child"), false);
+    assert.equal(child.getCookies().some((c) => c.name === "child"), true);
     const latin1Bytes = Uint8Array.from([0x54, 0x72, 0x61, 0x64, 0x75, 0xe7, 0xe3, 0x6f]);
     const decoded = await readResponseText({
       headers: { get: () => "text/html; charset=iso-8859-1" },

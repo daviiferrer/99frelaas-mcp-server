@@ -3,6 +3,7 @@ import { readResponseText } from "../clients/responseText";
 import { ProjectCategoryCatalogItem, ProjectDetail, ProjectSummary } from "../domain/models";
 import { parseProjectDetailHtml } from "../parsers/projectDetailParser";
 import { parseProjectListHtml } from "../parsers/projectListParser";
+import { elapsedMs, logger } from "../security/logger";
 
 const CATEGORY_CATALOG: ProjectCategoryCatalogItem[] = [
   { slug: "administracao-e-contabilidade", label: "Administração & Contabilidade" },
@@ -44,6 +45,8 @@ export class ProjectsAdapter {
     sort?: string;
     timeframe?: string;
   }): Promise<{ items: ProjectSummary[]; page: number; hasMore: boolean }> {
+    const startedAt = Date.now();
+    logger.info("projects.list.start", input);
     const params = new URLSearchParams({
       categoria: input.categorySlug,
       page: String(input.page),
@@ -55,6 +58,12 @@ export class ProjectsAdapter {
     );
     const html = await readResponseText(response);
     const items = parseProjectListHtml(html, input.categorySlug, input.page);
+    logger.info("projects.list.ok", {
+      ...input,
+      itemCount: items.length,
+      hasMore: items.length > 0,
+      durationMs: elapsedMs(startedAt),
+    });
     return {
       items,
       page: input.page,
@@ -76,6 +85,8 @@ export class ProjectsAdapter {
     nextExclusiveOpensAt?: string;
     rateLimitNote: string;
   }> {
+    const startedAt = Date.now();
+    logger.info("projects.list_by_availability.start", input);
     const maxPages = Math.min(Math.max(input.maxPages ?? 1, 1), 5);
     const delayMs = Math.max(input.delayMs ?? 1500, 1000);
     const openItems: ProjectSummary[] = [];
@@ -113,17 +124,28 @@ export class ProjectsAdapter {
   }
 
   async get(input: { projectId: number; projectSlug: string }): Promise<ProjectDetail> {
+    const startedAt = Date.now();
+    logger.info("projects.get.start", input);
     const slug = projectSlugWithId(input.projectSlug, input.projectId);
     const projectPath = `/project/${slug}`;
     const response = await this.http.request(projectPath);
     const html = await readResponseText(response);
-    return parseProjectDetailHtml(html, {
+    const detail = parseProjectDetailHtml(html, {
       projectId: input.projectId,
       projectSlug: slug,
       title: `Project ${input.projectId}`,
       url: `https://www.99freelas.com.br${projectPath}`,
       tags: [],
     });
+    logger.info("projects.get.ok", {
+      projectId: input.projectId,
+      projectSlug: slug,
+      requiresSubscriber: detail.requiresSubscriber,
+      userCanBid: detail.userCanBid,
+      competitorCount: detail.competitors?.length ?? 0,
+      durationMs: elapsedMs(startedAt),
+    });
+    return detail;
   }
 
   async getBidContext(input: { projectId: number; projectSlug: string }): Promise<{
@@ -135,6 +157,8 @@ export class ProjectsAdapter {
     requiresSubscriber: boolean;
     flags: Record<string, boolean>;
   }> {
+    const startedAt = Date.now();
+    logger.info("projects.bid_context.start", input);
     const slug = projectSlugWithId(input.projectSlug, input.projectId);
     const bidPath = `/project/bid/${slug}`;
     const response = await this.http.request(bidPath);
@@ -145,7 +169,7 @@ export class ProjectsAdapter {
       ?? html.match(/valor\s+m(?:ínimo|inimo)[^\d]{0,40}([\d.,]+)/i);
     const requiresSubscriber = /assine\s+um\s+de\s+nossos\s+planos|freelancer-premium|projeto\s+exclusivo/i.test(html);
     const blocked = /você\s+não\s+pode\s+enviar\s+proposta|voce\s+nao\s+pode\s+enviar\s+proposta|disponível\s+para\s+assinantes|disponivel\s+para\s+assinantes/i.test(html);
-    return {
+    const result = {
       projectId: input.projectId,
       bidUrl: `https://www.99freelas.com.br${bidPath}`,
       connectionsCost: connectionsMatch ? Number(connectionsMatch[1]) : undefined,
@@ -158,5 +182,15 @@ export class ProjectsAdapter {
         requiresSubscriber,
       },
     };
+    logger.info("projects.bid_context.ok", {
+      projectId: input.projectId,
+      projectSlug: slug,
+      userCanBid: result.userCanBid,
+      requiresSubscriber: result.requiresSubscriber,
+      connectionsCost: result.connectionsCost,
+      minimumOfferCents: result.minimumOfferCents,
+      durationMs: elapsedMs(startedAt),
+    });
+    return result;
   }
 }

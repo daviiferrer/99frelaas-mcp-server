@@ -82,17 +82,32 @@ test("cookie store default path branch", async () => {
 });
 
 test("session manager unauthenticated state", async () => {
-  const { SessionStore } = require("../dist/storage/sessionStore.js");
-  const { CookieStore } = require("../dist/auth/cookieStore.js");
-  const { SessionManager } = require("../dist/auth/sessionManager.js");
   const { mkdtemp } = require("node:fs/promises");
   const { tmpdir } = require("node:os");
   const { join } = require("node:path");
-  process.env.SESSION_ENCRYPTION_KEY_BASE64 = Buffer.alloc(32, 8).toString("base64");
-  process.env.SESSION_FILE = join(await mkdtemp(join(tmpdir(), "mcp99-")), "sessions.json");
-  const manager = new SessionManager(new SessionStore(), new CookieStore());
-  const state = await manager.checkSession();
-  assert.equal(state.isAuthenticated, false);
+  const originalKey = process.env.SESSION_ENCRYPTION_KEY_BASE64;
+  const originalStateDb = process.env.STATE_DB_FILE;
+  const originalSessionFile = process.env.SESSION_FILE;
+  const tmpDbDir = await mkdtemp(join(tmpdir(), "mcp99-"));
+  const tmpSessionDir = await mkdtemp(join(tmpdir(), "mcp99-"));
+
+  try {
+    process.env.SESSION_ENCRYPTION_KEY_BASE64 = Buffer.alloc(32, 8).toString("base64");
+    process.env.STATE_DB_FILE = join(tmpDbDir, "state.sqlite");
+    process.env.SESSION_FILE = join(tmpSessionDir, "sessions.json");
+    const { SessionStore } = require("../dist/storage/sessionStore.js");
+    const { CookieStore } = require("../dist/auth/cookieStore.js");
+    const { SessionManager } = require("../dist/auth/sessionManager.js");
+    const manager = new SessionManager(new SessionStore(), new CookieStore());
+    const state = await manager.checkSession();
+    assert.equal(state.isAuthenticated, false);
+  } finally {
+    const { StateDatabase } = require("../dist/storage/stateDatabase.js");
+    StateDatabase.closeAll();
+    process.env.SESSION_ENCRYPTION_KEY_BASE64 = originalKey;
+    process.env.STATE_DB_FILE = originalStateDb;
+    process.env.SESSION_FILE = originalSessionFile;
+  }
 });
 
 test("interactive login default values and matcher branches", async () => {

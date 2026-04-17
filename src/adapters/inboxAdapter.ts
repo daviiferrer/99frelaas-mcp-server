@@ -1,6 +1,7 @@
 import { HttpClient } from "../clients/httpClient";
 import { ConversationMessage, ConversationSummary } from "../domain/models";
 import { safeJson } from "../parsers/responseParser";
+import { elapsedMs, logger } from "../security/logger";
 
 type ConversationsPayload =
   | Array<Record<string, unknown>>
@@ -22,6 +23,8 @@ export class InboxAdapter {
   constructor(private readonly http: HttpClient) {}
 
   async listConversations(): Promise<ConversationSummary[]> {
+    const startedAt = Date.now();
+    logger.info("inbox.list_conversations.start");
     const response = await this.http.request(
       `/services/user/carregarConversas?data=${encodeURIComponent(
         JSON.stringify({
@@ -46,7 +49,7 @@ export class InboxAdapter {
         body?.items ??
         (body as { result?: { registros?: Array<Record<string, unknown>> } })?.result?.registros ??
         [];
-    return items
+    const conversations = items
       .map((item) => ({
         conversationId: Number(item.conversationId ?? item.id ?? item.idConversa),
         title: String(item.title ?? item.titulo ?? item.nomeProjeto ?? item.nome ?? "").trim() || undefined,
@@ -61,9 +64,13 @@ export class InboxAdapter {
           ).trim() || undefined,
       }))
       .filter((item) => Number.isFinite(item.conversationId));
+    logger.info("inbox.list_conversations.ok", { count: conversations.length, durationMs: elapsedMs(startedAt) });
+    return conversations;
   }
 
   async getMessages(input: { conversationId: number }): Promise<ConversationMessage[]> {
+    const startedAt = Date.now();
+    logger.info("inbox.get_messages.start", input);
     const response = await this.http.request(
       `/services/consultas/listarMensagensConversa?data=${encodeURIComponent(
         JSON.stringify({
@@ -83,7 +90,7 @@ export class InboxAdapter {
         body?.items ??
         (body as { result?: { mensagensDaConversa?: Array<Record<string, unknown>> } })?.result?.mensagensDaConversa ??
         [];
-    return items
+    const messages = items
       .map((item) => {
         const rawAuthorType = String(item.authorType ?? item.autorTipo ?? item.tipoAutor ?? "");
         const authorType: ConversationMessage["authorType"] =
@@ -100,9 +107,17 @@ export class InboxAdapter {
         };
       })
       .filter((item) => item.text.length > 0);
+    logger.info("inbox.get_messages.ok", {
+      conversationId: input.conversationId,
+      count: messages.length,
+      durationMs: elapsedMs(startedAt),
+    });
+    return messages;
   }
 
   async sendMessage(input: { conversationId: number; text: string }): Promise<{ ok: boolean }> {
+    const startedAt = Date.now();
+    logger.info("inbox.send_message.start", { conversationId: input.conversationId, textLength: input.text.length });
     const response = await this.http.request("/services/user/enviarMensagemConversa", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded; charset=UTF-8" },
@@ -116,7 +131,7 @@ export class InboxAdapter {
       }).toString(),
     });
     const body = await safeJson<any>(response);
-    return {
+    const result = {
       ok:
         response.ok &&
         (body?.status?.id === 1 ||
@@ -126,15 +141,27 @@ export class InboxAdapter {
           body === undefined ||
           Object.keys(body).length === 0),
     };
+    logger.info("inbox.send_message.ok", {
+      conversationId: input.conversationId,
+      ok: result.ok,
+      durationMs: elapsedMs(startedAt),
+    });
+    return result;
   }
 
   async getDirectoryCounts(): Promise<DirectoryCountPayload> {
+    const startedAt = Date.now();
+    logger.info("inbox.directory_counts.start");
     const response = await this.http.request("/services/consultas/getQtdConversasPorDiretorio");
     const body = await safeJson<DirectoryCountPayload>(response);
-    return body ?? {};
+    const counts = body ?? {};
+    logger.info("inbox.directory_counts.ok", { keys: Object.keys(counts), durationMs: elapsedMs(startedAt) });
+    return counts;
   }
 
   async getThread(input: { conversationId: number }): Promise<InboxThread> {
+    const startedAt = Date.now();
+    logger.info("inbox.get_thread.start", input);
     const [messagesResponse, counts] = await Promise.all([
       this.http.request(
         `/services/consultas/listarMensagensConversa?data=${encodeURIComponent(
@@ -177,6 +204,13 @@ export class InboxAdapter {
       .filter((item: ConversationMessage) => item.text.length > 0);
 
     const conversation = body?.result?.conversa ?? body?.conversa ?? body?.result?.conversaPessoa ?? body?.conversaPessoa;
-    return { conversation, messages, counts };
+    const result = { conversation, messages, counts };
+    logger.info("inbox.get_thread.ok", {
+      conversationId: input.conversationId,
+      messageCount: messages.length,
+      hasConversation: Boolean(conversation),
+      durationMs: elapsedMs(startedAt),
+    });
+    return result;
   }
 }

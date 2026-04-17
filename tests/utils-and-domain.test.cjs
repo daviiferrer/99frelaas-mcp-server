@@ -96,3 +96,11 @@ test("skills catalog helpers", async () => {
   assert.match(getSkillStacksResourceMarkdown(), /Curated Skill Stacks/);
   assert.match(getSkillSelectionGuideMarkdown(), /Keep the profile focused/);
 });
+
+test("authenticated username parser", async () => {
+  const { extractAuthenticatedUsernameFromHtml } = require("../dist/parsers/authIdentityParser.js");
+
+  const html = '<a href="/user/carlos-vieira-mkt">Meu perfil</a>';
+  assert.equal(extractAuthenticatedUsernameFromHtml(html), "carlos-vieira-mkt");
+  assert.equal(extractAuthenticatedUsernameFromHtml("<div>sem link</div>"), undefined);
+});

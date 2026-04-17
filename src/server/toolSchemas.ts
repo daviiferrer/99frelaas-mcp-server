@@ -2,14 +2,16 @@ import { z } from "zod";
 
 export const toolSchemas = {
   auth_importCookies: z.object({
+    accountId: z.string().min(1).optional().default("default"),
+    agentId: z.string().min(1).optional(),
     filePath: z.string().optional(),
     cookies: z.array(z.any()).optional(),
     cookiesJson: z.string().optional(),
   }),
-  auth_checkSession: z.object({}).optional().default({}),
-  auth_clearSession: z.object({}).optional().default({}),
-  profile_getInterestCatalog: z.object({}).optional().default({}),
-  profile_getEditState: z.object({}).optional().default({}),
+  auth_checkSession: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
+  auth_clearSession: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
+  profile_getInterestCatalog: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
+  profile_getEditState: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
   skills_getCatalog: z.object({
     query: z.string().min(1).optional(),
     offset: z.number().int().nonnegative().optional().default(0),
@@ -18,6 +20,8 @@ export const toolSchemas = {
   skills_getStacks: z.object({}).optional().default({}),
   skills_getSelectionGuide: z.object({}).optional().default({}),
   profile_update: z.object({
+    accountId: z.string().min(1).optional().default("default"),
+    agentId: z.string().min(1).optional(),
     name: z.string().min(1),
     nickname: z.string().min(1),
     professionalTitle: z.string().min(1),
@@ -29,6 +33,8 @@ export const toolSchemas = {
   }),
   projects_listCategories: z.object({}).optional().default({}),
   projects_list: z.object({
+    accountId: z.string().min(1).optional().default("default"),
+    agentId: z.string().min(1).optional(),
     categorySlug: z.string().min(1),
     page: z.number().int().positive().default(1),
     sort: z.enum([
@@ -51,6 +57,8 @@ export const toolSchemas = {
     timeframe: z.enum(["any", "24h", "3d"]).optional(),
   }),
   projects_listByAvailability: z.object({
+    accountId: z.string().min(1).optional().default("default"),
+    agentId: z.string().min(1).optional(),
     categorySlug: z.string().min(1),
     page: z.number().int().positive().default(1),
     maxPages: z.number().int().positive().max(5).optional().default(1),
@@ -75,14 +83,20 @@ export const toolSchemas = {
     delayMs: z.number().int().positive().min(1000).optional().default(1500),
   }),
   projects_get: z.object({
+    accountId: z.string().min(1).optional().default("default"),
+    agentId: z.string().min(1).optional(),
     projectId: z.number().int().positive(),
     projectSlug: z.string().min(1),
   }),
   projects_getBidContext: z.object({
+    accountId: z.string().min(1).optional().default("default"),
+    agentId: z.string().min(1).optional(),
     projectId: z.number().int().positive(),
     projectSlug: z.string().min(1),
   }),
   proposals_send: z.object({
+    accountId: z.string().min(1).optional().default("default"),
+    agentId: z.string().min(1).optional(),
     projectId: z.number().int().positive(),
     projectSlug: z.string().min(1).optional(),
     offerCents: z.number().int().positive(),
@@ -91,26 +105,34 @@ export const toolSchemas = {
     promote: z.boolean().optional().default(false),
     dryRun: z.boolean().optional().default(false),
   }),
-  inbox_listConversations: z.object({}).optional().default({}),
+  inbox_listConversations: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
   inbox_getMessages: z.object({
+    accountId: z.string().min(1).optional().default("default"),
+    agentId: z.string().min(1).optional(),
     conversationId: z.number().int().positive(),
   }),
   inbox_getThread: z.object({
+    accountId: z.string().min(1).optional().default("default"),
+    agentId: z.string().min(1).optional(),
     conversationId: z.number().int().positive(),
   }),
   inbox_sendMessage: z.object({
+    accountId: z.string().min(1).optional().default("default"),
+    agentId: z.string().min(1).optional(),
     conversationId: z.number().int().positive(),
     text: z.string().min(1),
   }),
-  inbox_getDirectoryCounts: z.object({}).optional().default({}),
-  account_getConnections: z.object({}).optional().default({}),
-  account_getDashboardSummary: z.object({}).optional().default({}),
-  account_getSubscriptionStatus: z.object({}).optional().default({}),
+  inbox_getDirectoryCounts: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
+  account_getConnections: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
+  account_getDashboardSummary: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
+  account_getSubscriptionStatus: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
   profiles_get: z.object({
+    accountId: z.string().min(1).optional().default("default"),
+    agentId: z.string().min(1).optional(),
     username: z.string().min(1),
     profileUrl: z.string().url().optional(),
   }),
-  system_health: z.object({}).optional().default({}),
+  system_health: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
 } as const;
 
 type JsonSchema = {
@@ -125,6 +147,8 @@ export const toolInputJsonSchemas: Record<string, JsonSchema> = {
     type: "object",
     properties: {
       filePath: { type: "string" },
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
       cookies: {
         type: "array",
         description: "Raw exported browser cookies array. Prefer cookiesJson when the user pasted JSON text.",
@@ -134,10 +158,38 @@ export const toolInputJsonSchemas: Record<string, JsonSchema> = {
     },
     additionalProperties: false,
   },
-  auth_checkSession: { type: "object", properties: {}, additionalProperties: false },
-  auth_clearSession: { type: "object", properties: {}, additionalProperties: false },
-  profile_getInterestCatalog: { type: "object", properties: {}, additionalProperties: false },
-  profile_getEditState: { type: "object", properties: {}, additionalProperties: false },
+  auth_checkSession: {
+    type: "object",
+    properties: {
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
+    },
+    additionalProperties: false,
+  },
+  auth_clearSession: {
+    type: "object",
+    properties: {
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
+    },
+    additionalProperties: false,
+  },
+  profile_getInterestCatalog: {
+    type: "object",
+    properties: {
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
+    },
+    additionalProperties: false,
+  },
+  profile_getEditState: {
+    type: "object",
+    properties: {
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
+    },
+    additionalProperties: false,
+  },
   skills_getCatalog: {
     type: "object",
     properties: {
@@ -153,6 +205,8 @@ export const toolInputJsonSchemas: Record<string, JsonSchema> = {
     type: "object",
     properties: {
       name: { type: "string" },
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
       nickname: { type: "string" },
       professionalTitle: { type: "string" },
       about: { type: "string" },
@@ -169,6 +223,8 @@ export const toolInputJsonSchemas: Record<string, JsonSchema> = {
     type: "object",
     properties: {
       categorySlug: { type: "string" },
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
       page: { type: "number", default: 1 },
       sort: {
         type: "string",
@@ -186,6 +242,8 @@ export const toolInputJsonSchemas: Record<string, JsonSchema> = {
     type: "object",
     properties: {
       categorySlug: { type: "string" },
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
       page: { type: "number", default: 1 },
       maxPages: {
         type: "number",
@@ -213,13 +271,23 @@ export const toolInputJsonSchemas: Record<string, JsonSchema> = {
   },
   projects_get: {
     type: "object",
-    properties: { projectId: { type: "number" }, projectSlug: { type: "string" } },
+    properties: {
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
+      projectId: { type: "number" },
+      projectSlug: { type: "string" },
+    },
     required: ["projectId", "projectSlug"],
     additionalProperties: false,
   },
   projects_getBidContext: {
     type: "object",
-    properties: { projectId: { type: "number" }, projectSlug: { type: "string" } },
+    properties: {
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
+      projectId: { type: "number" },
+      projectSlug: { type: "string" },
+    },
     required: ["projectId", "projectSlug"],
     additionalProperties: false,
   },
@@ -227,6 +295,8 @@ export const toolInputJsonSchemas: Record<string, JsonSchema> = {
     type: "object",
     properties: {
       projectId: { type: "number" },
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
       projectSlug: { type: "string", description: "Use the slug from projects_list or projects_get. It may include the numeric id." },
       offerCents: { type: "number", description: "Offer in cents. Always compare with projects_getBidContext.minimumOfferCents first." },
       durationDays: { type: "number", description: "Estimated delivery time in days." },
@@ -239,54 +309,92 @@ export const toolInputJsonSchemas: Record<string, JsonSchema> = {
   },
   inbox_listConversations: {
     type: "object",
-    properties: {},
+    properties: {
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
+    },
     additionalProperties: false,
   },
   inbox_getMessages: {
     type: "object",
-    properties: { conversationId: { type: "number" } },
+    properties: {
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
+      conversationId: { type: "number" },
+    },
     required: ["conversationId"],
     additionalProperties: false,
   },
   inbox_getThread: {
     type: "object",
-    properties: { conversationId: { type: "number" } },
+    properties: {
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
+      conversationId: { type: "number" },
+    },
     required: ["conversationId"],
     additionalProperties: false,
   },
   inbox_sendMessage: {
     type: "object",
     properties: {
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
       conversationId: { type: "number" },
       text: { type: "string" },
     },
     required: ["conversationId", "text"],
     additionalProperties: false,
   },
-  inbox_getDirectoryCounts: { type: "object", properties: {}, additionalProperties: false },
+  inbox_getDirectoryCounts: {
+    type: "object",
+    properties: {
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
+    },
+    additionalProperties: false,
+  },
   account_getConnections: {
     type: "object",
-    properties: {},
+    properties: {
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
+    },
     additionalProperties: false,
   },
   account_getDashboardSummary: {
     type: "object",
-    properties: {},
+    properties: {
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
+    },
     additionalProperties: false,
   },
   account_getSubscriptionStatus: {
     type: "object",
-    properties: {},
+    properties: {
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
+    },
     additionalProperties: false,
   },
   profiles_get: {
     type: "object",
     properties: {
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
       username: { type: "string" },
       profileUrl: { type: "string", description: "Optional full profile URL for the public contractor page." },
     },
     required: ["username"],
     additionalProperties: false,
   },
-  system_health: { type: "object", properties: {}, additionalProperties: false },
+  system_health: {
+    type: "object",
+    properties: {
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
+    },
+    additionalProperties: false,
+  },
 };

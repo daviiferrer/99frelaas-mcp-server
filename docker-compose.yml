@@ -1,4 +1,4 @@
-services:
+﻿services:
   99freelas-mcp-server:
     build:
       context: .
@@ -6,15 +6,19 @@ services:
     image: 99freelas-mcp-server:latest
     container_name: 99freelas-mcp-server
     init: true
-    stdin_open: true
-    tty: true
+    command: ["sh", "-lc", "touch /app/.data/server.log && tail -F /app/.data/server.log"]
     env_file:
       - .env
     environment:
+      STATE_DB_FILE: .data/state.sqlite
+      STATE_DB_JOURNAL_MODE: DELETE
       SESSION_FILE: .data/sessions.json
       CACHE_FILE: .data/cache.json
       AUDIT_LOG_FILE: .data/audit.log
       MANUAL_COOKIES_FILE: .data/manual-cookies.json
+      LOG_LEVEL: debug
+      LOG_FILE: .data/server.log
+      LOG_STDERR: "false"
     volumes:
       - ./.data:/app/.data
     restart: unless-stopped

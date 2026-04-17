@@ -1,5 +1,6 @@
 import { readFile } from "fs/promises";
 import { Cookie } from "../clients/httpClient";
+import { logger } from "../security/logger";
 
 type RawManualCookie = {
   name?: string;
@@ -28,6 +29,7 @@ const normalizeCookie = (item: RawManualCookie): Cookie | null => {
 };
 
 export const parseManualCookies = (input: unknown): Cookie[] => {
+  logger.debug("manual_cookies.parse.start");
   if (!Array.isArray(input)) {
     if (
       typeof input === "object" &&
@@ -43,15 +45,20 @@ export const parseManualCookies = (input: unknown): Cookie[] => {
     .filter((entry): entry is Cookie => Boolean(entry));
 
   if (cookies.length === 0) {
+    logger.warn("manual_cookies.parse.fail", { reason: "no_valid_cookies" });
     throw new Error("No valid cookies found in payload");
   }
 
+  logger.info("manual_cookies.parse.ok", { cookieCount: cookies.length, cookieNames: cookies.map((cookie) => cookie.name) });
   return cookies;
 };
 
 export const loadManualCookiesFromFile = async (filePath = DEFAULT_MANUAL_COOKIES_FILE): Promise<Cookie[]> => {
+  logger.info("manual_cookies.load.start", { filePath });
   const raw = await readFile(filePath, "utf8");
-  return parseManualCookies(JSON.parse(raw));
+  const cookies = parseManualCookies(JSON.parse(raw));
+  logger.info("manual_cookies.load.ok", { filePath, cookieCount: cookies.length });
+  return cookies;
 };
 
 export const getDefaultManualCookiesFile = (): string => DEFAULT_MANUAL_COOKIES_FILE;

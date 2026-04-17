@@ -14,6 +14,28 @@ const responseText = (text, url = "https://www.99freelas.com.br/x", ok = true) =
   arrayBuffer: async () => new TextEncoder().encode(text).buffer,
 });
 
+let tempDir = "";
+
+test.beforeEach(async () => {
+  tempDir = await mkdtemp(join(tmpdir(), "mcp99-"));
+  process.env.STATE_DB_FILE = join(tempDir, "state.sqlite");
+  process.env.SESSION_FILE = join(tempDir, "sessions.json");
+  process.env.CACHE_FILE = join(tempDir, "cache.json");
+  process.env.AUDIT_LOG_FILE = join(tempDir, "audit.log");
+  process.env.SESSION_ENCRYPTION_KEY_BASE64 = Buffer.alloc(32, 9).toString("base64");
+});
+
+test.afterEach(async () => {
+  const { StateDatabase } = require("../dist/storage/stateDatabase.js");
+  StateDatabase.closeAll();
+  if (tempDir) await require("node:fs/promises").rm(tempDir, { recursive: true, force: true });
+  delete process.env.STATE_DB_FILE;
+  delete process.env.SESSION_FILE;
+  delete process.env.CACHE_FILE;
+  delete process.env.AUDIT_LOG_FILE;
+  delete process.env.SESSION_ENCRYPTION_KEY_BASE64;
+});
+
 test("server tools end-to-end in memory", async () => {
   const { createServer } = require("../dist/server/createServer.js");
 
@@ -54,8 +76,15 @@ test("server tools end-to-end in memory", async () => {
     },
     httpClient: {
       setCookies() {},
+      createChildWithCookies() {
+        return {
+          async request() {
+            return responseText('<a href="/user/carlos-vieira-mkt">Meu perfil</a>');
+          },
+        };
+      },
       async request() {
-        return responseText("");
+        return responseText('<a href="/user/carlos-vieira-mkt">Meu perfil</a>');
       },
     },
     projectsAdapter: {
@@ -164,6 +193,14 @@ test("server tools end-to-end in memory", async () => {
   out = parseToolText(await client.callTool({ name: "projects_listCategories", arguments: {} }));
   assert.equal(out.items[0].slug, "administracao-e-contabilidade");
 
+  out = parseToolText(await client.callTool({
+    name: "auth_importCookies",
+    arguments: { cookiesJson: JSON.stringify([{ name: "JSESSIONID", value: "x", domain: ".99freelas.com.br" }]) },
+  }));
+  assert.equal(out.ok, true);
+  assert.equal(out.sessionId, "sess_01");
+  assert.equal(out.username, "carlos-vieira-mkt");
+
   out = parseToolText(await client.callTool({ name: "profile_getInterestCatalog", arguments: {} }));
   assert.equal(Array.isArray(out.items), true);
   out = parseToolText(await client.callTool({ name: "skills_getCatalog", arguments: { limit: 10 } }));
@@ -175,13 +212,6 @@ test("server tools end-to-end in memory", async () => {
   assert.match(out.markdown, /Curated Skill Stacks/);
   out = parseToolText(await client.callTool({ name: "skills_getSelectionGuide", arguments: {} }));
   assert.match(out.markdown, /Skill Selection Guide/);
-
-  out = parseToolText(await client.callTool({
-    name: "auth_importCookies",
-    arguments: { cookiesJson: JSON.stringify([{ name: "JSESSIONID", value: "x", domain: ".99freelas.com.br" }]) },
-  }));
-  assert.equal(out.ok, true);
-  assert.equal(out.sessionId, "sess_01");
 
   out = parseToolText(await client.callTool({ name: "projects_list", arguments: { categorySlug: "web-mobile-e-software", page: 1 } }));
   assert.equal(out.items.length, 1);
@@ -234,7 +264,7 @@ test("server tools end-to-end in memory", async () => {
   assert.equal(out.ok, true);
 
   const today = new Date().toISOString().slice(0, 10);
-  ctx.proposalDayCounter.set(today, ctx.proposalsDailyLimit);
+  ctx.proposalDayCounter.set(`default:${today}:proposals`, ctx.proposalsDailyLimit);
   const limitHit = await client.callTool({
     name: "proposals_send",
     arguments: { projectId: 77, offerCents: 50000, durationDays: 5, proposalText: "texto de proposta suficiente", promote: false, dryRun: false },
@@ -248,6 +278,11 @@ test("server tools end-to-end in memory", async () => {
   assert.equal(badArgs.isError, true);
 
   out = parseToolText(await client.callTool({ name: "auth_clearSession", arguments: {} }));
+  assert.equal(out.ok, true);
+  out = parseToolText(await client.callTool({
+    name: "auth_importCookies",
+    arguments: { cookiesJson: JSON.stringify([{ name: "JSESSIONID", value: "x", domain: ".99freelas.com.br" }]) },
+  }));
   assert.equal(out.ok, true);
 
   out = parseToolText(await client.callTool({ name: "profile_getEditState", arguments: {} }));
@@ -337,7 +372,9 @@ test("authenticated tools auto-import manual cookies fallback", async () => {
   );
 
   const originalManualCookiesFile = process.env.MANUAL_COOKIES_FILE;
+  const originalAllowFallback = process.env.ALLOW_MANUAL_COOKIE_FALLBACK;
   process.env.MANUAL_COOKIES_FILE = cookiesFile;
+  process.env.ALLOW_MANUAL_COOKIE_FALLBACK = "true";
   delete require.cache[require.resolve("../dist/auth/manualCookies.js")];
   delete require.cache[require.resolve("../dist/server/createServer.js")];
   const { createServer } = require("../dist/server/createServer.js");
@@ -398,4 +435,5 @@ test("authenticated tools auto-import manual cookies fallback", async () => {
   await client.close();
   await server.close();
   process.env.MANUAL_COOKIES_FILE = originalManualCookiesFile;
+  process.env.ALLOW_MANUAL_COOKIE_FALLBACK = originalAllowFallback;
 });

@@ -1,6 +1,7 @@
 import { HttpClient } from "../clients/httpClient";
 import { ProposalInput } from "../domain/models";
 import { safeJson } from "../parsers/responseParser";
+import { elapsedMs, logger } from "../security/logger";
 
 type ProposalResponse = {
   status?: { id?: number };
@@ -38,7 +39,16 @@ export class ProposalsAdapter {
     nextAction?: string;
     redirectHint?: string;
   }> {
+    const startedAt = Date.now();
+    logger.info("proposals.send.start", {
+      projectId: input.projectId,
+      dryRun: Boolean(input.dryRun),
+      offerCents: input.offerCents,
+      durationDays: input.durationDays,
+      promote: Boolean(input.promote),
+    });
     if (input.dryRun) {
+      logger.info("proposals.send.dry_run", { projectId: input.projectId, durationMs: elapsedMs(startedAt) });
       return {
         ok: true,
         projectId: input.projectId,
@@ -73,7 +83,7 @@ export class ProposalsAdapter {
     const body = await safeJson<ProposalResponse>(response);
     const minimumOfferCents = parseCurrencyCentsFromMessage(body?.message);
     const blockedReason = classifyProposalFailure(body?.message);
-    return {
+    const result = {
       ok: response.ok && body?.status?.id === 1,
       projectId: input.projectId,
       responseStatusId: body?.status?.id,
@@ -89,5 +99,14 @@ export class ProposalsAdapter {
             ? "Verify account subscription before retrying this project"
             : undefined,
     };
+    logger.info("proposals.send.ok", {
+      projectId: input.projectId,
+      ok: result.ok,
+      responseStatusId: result.responseStatusId,
+      blockedReason: result.blockedReason,
+      minimumOfferCents: result.minimumOfferCents,
+      durationMs: elapsedMs(startedAt),
+    });
+    return result;
   }
 }

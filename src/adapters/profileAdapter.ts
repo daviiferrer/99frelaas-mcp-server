@@ -4,6 +4,7 @@ import { ProfileEditState, ProfileUpdateInput, PublicProfileDetail } from "../do
 import { assertValidSkillIds } from "../domain/skillsCatalog";
 import { parsePublicProfileHtml } from "../parsers/publicProfileParser";
 import { safeJson } from "../parsers/responseParser";
+import { elapsedMs, logger } from "../security/logger";
 import { decodeHtmlEntities } from "../utils/text";
 
 type ProfileEditPayload = {
@@ -45,12 +46,18 @@ export class ProfileAdapter {
   constructor(private readonly http: HttpClient) {}
 
   async getInterestCatalog(): Promise<Array<{ title: string; items: string[] }>> {
+    const startedAt = Date.now();
+    logger.info("profile.get_interest_catalog.start");
     const response = await this.http.request("/profile/edit");
     const html = await readResponseText(response);
-    return parseInterestCatalog(html);
+    const catalog = parseInterestCatalog(html);
+    logger.info("profile.get_interest_catalog.ok", { groupCount: catalog.length, durationMs: elapsedMs(startedAt) });
+    return catalog;
   }
 
   async getEditState(): Promise<ProfileEditState> {
+    const startedAt = Date.now();
+    logger.info("profile.get_edit_state.start");
     const response = await this.http.request("/profile/edit");
     const html = await readResponseText(response);
 
@@ -93,7 +100,7 @@ export class ProfileAdapter {
     if (skillIds.length === 0) missingFields.push("skills");
     const completenessScore = Math.max(0, Math.round((1 - missingFields.length / 8) * 100));
 
-    return {
+    const result = {
       name: name ? decodeHtml(name) : name,
       nickname: nickname ? decodeHtml(nickname) : nickname,
       professionalTitle: professionalTitle ? decodeHtml(professionalTitle) : professionalTitle,
@@ -109,6 +116,13 @@ export class ProfileAdapter {
       completenessScore,
       missingFields,
     };
+    logger.info("profile.get_edit_state.ok", {
+      completenessScore: result.completenessScore,
+      interestAreaCount: result.interestAreaIds.length,
+      skillCount: result.skillIds.length,
+      durationMs: elapsedMs(startedAt),
+    });
+    return result;
   }
 
   async update(input: ProfileUpdateInput): Promise<{
@@ -117,6 +131,13 @@ export class ProfileAdapter {
     responseStatusId?: number;
     message?: string;
   }> {
+    const startedAt = Date.now();
+    logger.info("profile.update.start", {
+      nickname: input.nickname,
+      titleLength: input.professionalTitle.length,
+      interestAreaCount: input.interestAreaIds.length,
+      skillCount: input.skillIds.length,
+    });
     const skillIds = assertValidSkillIds(input.skillIds);
     const response = await this.http.request("/services/user/editarPerfil", {
       method: "POST",
@@ -145,19 +166,34 @@ export class ProfileAdapter {
     });
     const body = await safeJson<ProfileEditPayload>(response);
     const normalizedStatus = body?.status?.id ?? body?.result?.status?.id;
-    return {
+    const result = {
       ok: response.ok,
       responseStatusId: normalizedStatus,
       redirectHint: response.url.includes("/dashboard") ? "/dashboard" : undefined,
       message: body?.message ?? body?.result?.message,
     };
+    logger.info("profile.update.ok", {
+      nickname: input.nickname,
+      ok: result.ok,
+      responseStatusId: result.responseStatusId,
+      durationMs: elapsedMs(startedAt),
+    });
+    return result;
   }
 
   async getPublicProfile(input: { username: string; profileUrl?: string }): Promise<PublicProfileDetail> {
+    const startedAt = Date.now();
+    logger.info("profile.get_public.start", { username: input.username, hasProfileUrl: Boolean(input.profileUrl) });
     const username = input.username.replace(/^\/+/, "").replace(/^https?:\/\/www\.99freelas\.com\.br\/user\//i, "");
     const profileUrl = input.profileUrl ?? `https://www.99freelas.com.br/user/${username}`;
     const response = await this.http.request(`/user/${username}`);
     const html = await readResponseText(response);
-    return parsePublicProfileHtml(html, profileUrl);
+    const detail = parsePublicProfileHtml(html, profileUrl);
+    logger.info("profile.get_public.ok", {
+      username,
+      openProjectsCount: detail.openProjects?.length ?? 0,
+      durationMs: elapsedMs(startedAt),
+    });
+    return detail;
   }
 }
