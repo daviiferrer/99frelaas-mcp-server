@@ -185,7 +185,7 @@ test("server tools end-to-end in memory", async () => {
   await client.connect(clientTransport);
 
   const tools = await client.listTools();
-  assert.equal(tools.tools.length, 25);
+  assert.equal(tools.tools.length, 27);
 
   let out = parseToolText(await client.callTool({ name: "auth_checkSession", arguments: {} }));
   assert.equal(out.session.isAuthenticated, false);

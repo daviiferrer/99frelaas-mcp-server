@@ -227,7 +227,7 @@ test("mock stress suite covers all tools in parallel across accounts", async () 
   await client.connect(clientTransport);
 
   const tools = await client.listTools();
-  assert.equal(tools.tools.length, 25);
+  assert.equal(tools.tools.length, 27);
 
   const scenarios = [
     ["auth_checkSession", {}],
