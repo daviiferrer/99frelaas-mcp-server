@@ -25,4 +25,18 @@ export class SessionStore {
     const db = await this.getStateDb();
     await db.clearActiveSession(accountId);
   }
+
+  async listSessions(): Promise<Array<{
+    accountId: string;
+    sessionId: string;
+    userId?: string;
+    username?: string;
+    lastValidatedAt?: string;
+    updatedAt: string;
+    active: boolean;
+    cookieNames: string[];
+  }>> {
+    const db = await this.getStateDb();
+    return db.listSessions();
+  }
 }

@@ -118,7 +118,7 @@ test("server tools end-to-end in memory", async () => {
     },
     inboxAdapter: {
       async listConversations() {
-        return [{ conversationId: 11, title: "Chat" }];
+        return { items: [{ conversationId: 11, title: "Chat" }], start: 0, limit: 20, hasMore: false };
       },
       async getMessages({ conversationId }) {
         return [{ messageId: 99, text: `conv-${conversationId}` }];
@@ -243,6 +243,7 @@ test("server tools end-to-end in memory", async () => {
 
   out = parseToolText(await client.callTool({ name: "inbox_listConversations", arguments: {} }));
   assert.equal(out.items[0].conversationId, 11);
+  assert.equal(out.start, 0);
   out = parseToolText(await client.callTool({ name: "inbox_getMessages", arguments: { conversationId: 11 } }));
   assert.match(out.items[0].text, /conv-11/);
   out = parseToolText(await client.callTool({ name: "inbox_sendMessage", arguments: { conversationId: 11, text: "oi" } }));

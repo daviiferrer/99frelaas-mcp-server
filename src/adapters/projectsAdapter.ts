@@ -20,6 +20,8 @@ const CATEGORY_CATALOG: ProjectCategoryCatalogItem[] = [
   { slug: "web-mobile-e-software", label: "Web, Mobile & Software" },
 ];
 
+const categoryLabelBySlug = new Map(CATEGORY_CATALOG.map((item) => [item.slug, item.label]));
+
 const projectSlugWithId = (projectSlug: string | undefined, projectId: number): string =>
   !projectSlug ? String(projectId) : projectSlug.endsWith(`-${projectId}`) ? projectSlug : `${projectSlug}-${projectId}`;
 
@@ -57,7 +59,10 @@ export class ProjectsAdapter {
       `/projects?${params.toString()}`,
     );
     const html = await readResponseText(response);
-    const items = parseProjectListHtml(html, input.categorySlug, input.page);
+    const items = parseProjectListHtml(html, input.categorySlug, input.page).map((item) => ({
+      ...item,
+      categoryName: item.categoryName ?? categoryLabelBySlug.get(input.categorySlug),
+    }));
     logger.info("projects.list.ok", {
       ...input,
       itemCount: items.length,

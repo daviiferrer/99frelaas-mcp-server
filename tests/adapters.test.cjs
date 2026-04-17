@@ -170,8 +170,10 @@ test("inbox adapter", async () => {
   ]);
   const adapter = new InboxAdapter(http);
   const conv = await adapter.listConversations();
-  assert.equal(conv[0].conversationId, 11);
-  assert.equal(conv[0].unreadCount, 2);
+  assert.equal(conv.items[0].conversationId, 11);
+  assert.equal(conv.items[0].unreadCount, 2);
+  assert.equal(conv.start, 0);
+  assert.equal(conv.limit, 20);
   const msgs = await adapter.getMessages({ conversationId: 11 });
   assert.equal(msgs[0].text, "OlA time");
   const sent = await adapter.sendMessage({ conversationId: 11, text: "oi" });
@@ -239,8 +241,8 @@ test("inbox adapter supports wrapped payloads", async () => {
   ]);
   const adapter = new InboxAdapter(http);
   const conversations = await adapter.listConversations();
-  assert.equal(conversations[0].conversationId, 21);
-  assert.equal(conversations[0].lastMessagePreview, "ultima");
+  assert.equal(conversations.items[0].conversationId, 21);
+  assert.equal(conversations.items[0].lastMessagePreview, "ultima");
   const messages = await adapter.getMessages({ conversationId: 21 });
   assert.equal(messages[0].authorType, undefined);
   assert.equal(messages[1].authorType, "user");

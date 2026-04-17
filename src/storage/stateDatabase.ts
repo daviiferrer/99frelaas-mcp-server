@@ -320,6 +320,46 @@ export class StateDatabase {
     };
   }
 
+  async listSessions(): Promise<Array<{
+    accountId: string;
+    sessionId: string;
+    userId?: string;
+    username?: string;
+    lastValidatedAt?: string;
+    updatedAt: string;
+    active: boolean;
+    cookieNames: string[];
+  }>> {
+    await this.ensureInitialized();
+    const rows = this.db.prepare(
+      `
+        SELECT accountId, sessionId, userId, username, lastValidatedAt, updatedAt, cookiesJson, active
+        FROM sessions
+        ORDER BY accountId ASC, updatedAt DESC
+      `,
+    ).all() as Array<{
+      accountId: string;
+      sessionId: string;
+      userId?: string | null;
+      username?: string | null;
+      lastValidatedAt?: string | null;
+      updatedAt: string;
+      cookiesJson: string;
+      active: number;
+    }>;
+
+    return rows.map((row) => ({
+      accountId: row.accountId,
+      sessionId: row.sessionId,
+      userId: row.userId ?? undefined,
+      username: row.username ?? undefined,
+      lastValidatedAt: row.lastValidatedAt ?? undefined,
+      updatedAt: row.updatedAt,
+      active: row.active === 1,
+      cookieNames: (JSON.parse(row.cookiesJson) as Array<{ name?: string }>).map((cookie) => cookie.name).filter((name): name is string => Boolean(name)),
+    }));
+  }
+
   async saveSession(accountId: string, record: SessionRecord): Promise<void> {
     await this.ensureInitialized();
     withTransaction(this.db, () => {
@@ -330,7 +370,7 @@ export class StateDatabase {
 
   async clearActiveSession(accountId = "default"): Promise<void> {
     await this.ensureInitialized();
-    this.db.prepare("UPDATE sessions SET active = 0 WHERE accountId = ?").run(accountId);
+    this.db.prepare("DELETE FROM sessions WHERE accountId = ?").run(accountId);
   }
 
   async hasProposal(accountId: string, projectId: number): Promise<boolean> {

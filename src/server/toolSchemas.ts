@@ -10,6 +10,7 @@ export const toolSchemas = {
   }),
   auth_checkSession: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
   auth_clearSession: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
+  auth_listSessions: z.object({ agentId: z.string().min(1).optional() }).optional().default({}),
   profile_getInterestCatalog: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
   profile_getEditState: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
   skills_getCatalog: z.object({
@@ -105,7 +106,12 @@ export const toolSchemas = {
     promote: z.boolean().optional().default(false),
     dryRun: z.boolean().optional().default(false),
   }),
-  inbox_listConversations: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
+  inbox_listConversations: z.object({
+    accountId: z.string().min(1).optional().default("default"),
+    agentId: z.string().min(1).optional(),
+    start: z.number().int().nonnegative().optional().default(0),
+    limit: z.number().int().positive().max(100).optional().default(20),
+  }).optional().default({}),
   inbox_getMessages: z.object({
     accountId: z.string().min(1).optional().default("default"),
     agentId: z.string().min(1).optional(),
@@ -123,6 +129,12 @@ export const toolSchemas = {
     text: z.string().min(1),
   }),
   inbox_getDirectoryCounts: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
+  notifications_list: z.object({
+    accountId: z.string().min(1).optional().default("default"),
+    agentId: z.string().min(1).optional(),
+    limit: z.number().int().positive().max(500).optional().default(10),
+    markViewed: z.boolean().optional().default(true),
+  }).optional().default({}),
   account_getConnections: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
   account_getDashboardSummary: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
   account_getSubscriptionStatus: z.object({ accountId: z.string().min(1).optional().default("default"), agentId: z.string().min(1).optional() }).optional().default({}),
@@ -170,6 +182,13 @@ export const toolInputJsonSchemas: Record<string, JsonSchema> = {
     type: "object",
     properties: {
       accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
+    },
+    additionalProperties: false,
+  },
+  auth_listSessions: {
+    type: "object",
+    properties: {
       agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
     },
     additionalProperties: false,
@@ -312,6 +331,8 @@ export const toolInputJsonSchemas: Record<string, JsonSchema> = {
     properties: {
       accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
       agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
+      start: { type: "number", default: 0, minimum: 0, description: "Start offset for paging older inbox conversations." },
+      limit: { type: "number", default: 20, minimum: 1, maximum: 100, description: "Maximum number of conversations to fetch per page." },
     },
     additionalProperties: false,
   },
@@ -351,6 +372,16 @@ export const toolInputJsonSchemas: Record<string, JsonSchema> = {
     properties: {
       accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
       agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
+    },
+    additionalProperties: false,
+  },
+  notifications_list: {
+    type: "object",
+    properties: {
+      accountId: { type: "string", description: "Logical account namespace for multi-account operation. Defaults to default." },
+      agentId: { type: "string", description: "Optional harness correlation ID for the calling agent." },
+      limit: { type: "number", default: 10, minimum: 1, maximum: 500, description: "Maximum number of notifications to fetch." },
+      markViewed: { type: "boolean", default: true, description: "Mark notifications as viewed after listing them. Defaults to true." },
     },
     additionalProperties: false,
   },
