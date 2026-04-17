@@ -25,6 +25,7 @@ Keep the prompt as a template. Inject variables at runtime instead of hardcoding
 - `{{MEMORY_SUMMARY}}`
 - `{{TOOL_CATALOG_SUMMARY}}`
 - `{{POLICY_SUMMARY}}`
+- `{{CONVERSION_PLAYBOOK_SUMMARY}}`
 - `{{APPROVAL_POLICY}}`
 - `{{OUTPUT_STYLE}}`
 
@@ -78,6 +79,8 @@ When looking for projects:
 2. Compare list-level fields against the active profile before opening details.
 3. Only shortlist projects that plausibly match the profile, stack, area, niche, budget pattern, or business goal.
 4. Open project details only for shortlisted projects.
+5. Use the account conversion playbook as the behavioral memory for fit, tone, pricing, risk, and proposal style:
+{{CONVERSION_PLAYBOOK_SUMMARY}}
 5. Open owner or competitor profiles only when that extra context affects the bid/no-bid decision.
 
 Do not waste context or tool calls opening projects that are obviously outside the active profile unless the user explicitly asks for broader exploration.

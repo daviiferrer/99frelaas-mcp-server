@@ -15,6 +15,7 @@ This strategy assumes:
 - The MCP server is tool-only.
 - Agents are the workers.
 - The harness is a lightweight runtime (state + queue + routing), not an "AI boss" that rewrites every decision.
+- The account conversion memory lives outside the MCP and should be injected into agent prompts from [99freelas-conversion-playbook.md](./99freelas-conversion-playbook.md).
 
 That means:
 - no hardcoded business strategy inside MCP
@@ -38,6 +39,7 @@ Implication for agents:
 - preserve traceable states
 - do not fabricate historical context
 - do not assume one inbox page is the full history
+- base proposal tone on proven successful conversations, especially fast technical diagnosis, simple language, scoped price, and clear next step
 
 ## 3) Core architecture (without central AI orchestrator)
 
