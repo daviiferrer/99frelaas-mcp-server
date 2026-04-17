@@ -1,6 +1,7 @@
 import { HttpClient } from "../clients/httpClient";
-import { ConversationMessage, ConversationSummary } from "../domain/models";
+import { ConversationMessage, ConversationSummary, NotificationItem } from "../domain/models";
 import { safeJson } from "../parsers/responseParser";
+import { cleanText, decodeHtmlEntities } from "../utils/text";
 import { elapsedMs, logger } from "../security/logger";
 
 type ConversationsPayload =
@@ -19,12 +20,23 @@ type InboxThread = {
   counts: DirectoryCountPayload;
 };
 
+type NotificationsPayload = {
+  items?: Array<Record<string, unknown>>;
+};
+
 export class InboxAdapter {
   constructor(private readonly http: HttpClient) {}
 
-  async listConversations(): Promise<ConversationSummary[]> {
+  async listConversations(input?: { start?: number; limit?: number }): Promise<{
+    items: ConversationSummary[];
+    start: number;
+    limit: number;
+    hasMore: boolean;
+  }> {
     const startedAt = Date.now();
-    logger.info("inbox.list_conversations.start");
+    const start = Math.max(input?.start ?? 0, 0);
+    const limit = Math.min(Math.max(input?.limit ?? 20, 1), 100);
+    logger.info("inbox.list_conversations.start", { start, limit });
     const response = await this.http.request(
       `/services/user/carregarConversas?data=${encodeURIComponent(
         JSON.stringify({
@@ -32,11 +44,11 @@ export class InboxAdapter {
           idTagPessoa: null,
           idProjeto: null,
           query: "",
-          limit: 20,
+          limit,
           buscarQtd: true,
           apenasNaoLidas: null,
           idPessoa: null,
-          start: 0,
+          start,
           idConversa: null,
           dhCorte: 0,
         }),
@@ -64,8 +76,20 @@ export class InboxAdapter {
           ).trim() || undefined,
       }))
       .filter((item) => Number.isFinite(item.conversationId));
-    logger.info("inbox.list_conversations.ok", { count: conversations.length, durationMs: elapsedMs(startedAt) });
-    return conversations;
+    const hasMore = conversations.length >= limit;
+    logger.info("inbox.list_conversations.ok", {
+      count: conversations.length,
+      start,
+      limit,
+      hasMore,
+      durationMs: elapsedMs(startedAt),
+    });
+    return {
+      items: conversations,
+      start,
+      limit,
+      hasMore,
+    };
   }
 
   async getMessages(input: { conversationId: number }): Promise<ConversationMessage[]> {
@@ -212,5 +236,63 @@ export class InboxAdapter {
       durationMs: elapsedMs(startedAt),
     });
     return result;
+  }
+
+  async listNotifications(input?: { limit?: number; markViewed?: boolean }): Promise<{
+    items: NotificationItem[];
+    limit: number;
+    markViewed: boolean;
+    viewed: boolean;
+  }> {
+    const startedAt = Date.now();
+    const limit = Math.min(Math.max(input?.limit ?? 10, 1), 500);
+    const markViewed = input?.markViewed ?? true;
+    logger.info("notifications.list.start", { limit, markViewed });
+
+    const response = await this.http.request(`/notifications/view?limit=${encodeURIComponent(String(limit))}`);
+    const html = await response.text();
+    const items: NotificationItem[] = [];
+    const itemRegex = /<li[^>]*class=['"][^'"]*(?:notificacoes-list-item|notificacao-item)[^'"]*['"][^>]*>([\s\S]*?)<\/li>/gi;
+    let match: RegExpExecArray | null;
+
+    while ((match = itemRegex.exec(html))) {
+      const block = match[1];
+      const messageNode = block.match(/<p[^>]*class=['"][^'"]*notification-message[^'"]*['"][^>]*>([\s\S]*?)<\/p>/i);
+      const message = cleanText(
+        decodeHtmlEntities(
+          (messageNode?.[1] ?? block)
+            .replace(/<br\s*\/?>/gi, "\n")
+            .replace(/<\/(p|div|span|a|small|strong|h[1-6])>/gi, "\n")
+            .replace(/<[^>]+>/g, " "),
+        ),
+      );
+      if (!message) continue;
+      const linkMatch = block.match(/<a[^>]+href=['"]([^'"]+)['"][^>]*>([\s\S]*?)<\/a>/i);
+      const timeMatch = cleanText(block.match(/(\d+\s+(?:minutos?|horas?|dias?)\s+atr[aÃ¡]s)/i)?.[1]);
+      items.push({
+        message,
+        url: linkMatch?.[1] ? new URL(linkMatch[1], "https://www.99freelas.com.br").toString() : undefined,
+        title: linkMatch?.[2] ? cleanText(linkMatch[2]) : undefined,
+        createdAt: timeMatch || undefined,
+      });
+    }
+
+    let viewed = false;
+    if (markViewed && items.length > 0) {
+      const markResponse = await this.http.request("/services/user/marcarTodasAsNotificacoesComoVisualizadas?visualizada=true", {
+        method: "POST",
+      });
+      viewed = markResponse.ok;
+    }
+
+    logger.info("notifications.list.ok", {
+      count: items.length,
+      limit,
+      markViewed,
+      viewed,
+      durationMs: elapsedMs(startedAt),
+    });
+
+    return { items, limit, markViewed, viewed };
   }
 }

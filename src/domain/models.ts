@@ -24,11 +24,13 @@ export type ProjectSummary = {
   summary?: string;
   tags: string[];
   categoryName?: string;
+  subcategoryName?: string;
   categorySlug?: string;
   experienceLevel?: string;
   proposalsCount?: number;
   interestedCount?: number;
   publishedText?: string;
+  remainingText?: string;
   client?: ClientSummary;
   isExclusive?: boolean;
   isUrgent?: boolean;
@@ -47,6 +49,7 @@ export type ProjectCategoryCatalogItem = {
 export type ProjectCompetitor = {
   name: string;
   username?: string;
+  profileUrl?: string;
   status?: string;
   submittedAt?: string;
   isPremium?: boolean;
@@ -59,10 +62,13 @@ export type ProjectDetail = ProjectSummary & {
   minimumOfferCents?: number;
   userCanBid?: boolean;
   requiresSubscriber?: boolean;
+  budgetText?: string;
   budgetMin?: string;
   budgetMax?: string;
   timeline?: string;
   visibility?: string;
+  preferredTechnologies?: string[];
+  featureList?: string[];
   competitors?: ProjectCompetitor[];
   clientSignals?: Record<string, string | number | boolean | undefined>;
 };
@@ -89,6 +95,13 @@ export type ConversationMessage = {
   authorType?: "user" | "client" | "system";
   text: string;
   sentAt?: string;
+};
+
+export type NotificationItem = {
+  title?: string;
+  message: string;
+  url?: string;
+  createdAt?: string;
 };
 
 export type ProfileEditState = {

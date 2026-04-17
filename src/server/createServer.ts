@@ -73,6 +73,7 @@ const toolDescriptions: Record<ToolInputName, string> = {
   auth_checkSession:
     "Check whether encrypted cookies are loaded for a given accountId namespace. Use before authenticated tools and after auth_importCookies.",
   auth_clearSession: "Clear the currently active session for a given accountId namespace.",
+  auth_listSessions: "List stored sessions by accountId without exposing raw cookies. Use before clearing sessions or when auditing connected accounts.",
   profile_getInterestCatalog: "List profile interest categories and nested options for a given accountId. Use before profile_update when choosing interestAreaIds.",
   profile_getEditState: "Inspect current profile fields, skills, interest IDs, photo status, and completeness for a given accountId before changing or bidding.",
   skills_getCatalog:
@@ -85,20 +86,24 @@ const toolDescriptions: Record<ToolInputName, string> = {
   projects_list: "List projects by category/page for a given accountId. Use this to discover projectId/projectSlug and watch flags such as isExclusive/isUrgent before details or proposals.",
   projects_listByAvailability:
     "Scan a small, rate-limited set of project pages and split results into openItems and exclusiveItems. Use this before proposals when you need to avoid exclusive/premium-only projects or schedule follow-up for exclusiveUnlockText/exclusiveOpensAt.",
-  projects_get: "Read project detail page for a given accountId. Use after projects_list to understand scope, client signals, competitors, and bid URL.",
+  projects_get:
+    "Read project detail page for a given accountId. Use after projects_list to understand scope, metrics, client signals, competitors, and direct profile targets you can pass to profiles_get.",
   projects_getBidContext:
     "Read the bid page for a given accountId before any proposal. Returns minimumOfferCents, userCanBid, requiresSubscriber, connection cost, and flags such as isAlreadyProposed.",
   proposals_send:
     "Send a proposal for a given accountId. Natural flow: auth_checkSession -> account_getDashboardSummary -> projects_getBidContext -> ensure offerCents >= minimumOfferCents and userCanBid=true -> dryRun if uncertain -> send.",
-  inbox_listConversations: "List inbox conversations for a given accountId. Use to discover conversationId before reading or replying.",
+  inbox_listConversations:
+    "List inbox conversations for a given accountId. Use start/limit pagination to inspect older history before reading or replying.",
   inbox_getMessages: "Fetch messages from a conversation for a given accountId. Use before replying so the answer matches the client context.",
   inbox_getThread: "Fetch full conversation plus directory counts for a given accountId. Best default before composing a reply.",
   inbox_sendMessage: "Send a message to a conversation for a given accountId. Use after inbox_getThread and avoid duplicate/unsolicited messages.",
   inbox_getDirectoryCounts: "Get inbox directory counts such as unread/inbox/highlighted for a given accountId.",
+  notifications_list: "List notifications for a given accountId and optionally mark them as viewed after reading them.",
   account_getConnections: "Get available 99Freelas connections for a given accountId before sending proposals.",
   account_getDashboardSummary: "Get login/account summary, connections, and account indicators for a given accountId before proposals.",
   account_getSubscriptionStatus: "Inspect the /subscriptions page to determine whether the account has an active subscription for a given accountId.",
-  profiles_get: "Read the public contractor profile for a project owner, including ratings, history, and open projects, using a given accountId context.",
+  profiles_get:
+    "Read the public contractor profile for a username, including ratings, history, and open projects, using a given accountId context. Feed it with projects_get.client.username or projects_get.competitors[].username when available.",
   system_health: "Check MCP connectivity and session loading for a given accountId namespace.",
 };
 /* c8 ignore end */
@@ -261,6 +266,9 @@ const executeTool = async (
       await ctx.auditLog.append("auth_clearSession", { accountId });
       return { ok: true };
     }
+    case "auth_listSessions": {
+      return { items: await ctx.sessionManager.listSessions() };
+    }
     case "profile_getInterestCatalog": {
       const scoped = await getScopedServices(ctx, accountId);
       return { items: await scoped.profileAdapter.getInterestCatalog() };
@@ -364,7 +372,8 @@ const executeTool = async (
     }
     case "inbox_listConversations": {
       const scoped = await getScopedServices(ctx, accountId);
-      return { items: await scoped.inboxAdapter.listConversations() };
+      const args = toolSchemas[toolName].parse(argsRaw);
+      return scoped.inboxAdapter.listConversations(args);
     }
     case "inbox_getMessages": {
       const scoped = await getScopedServices(ctx, accountId);
@@ -393,6 +402,11 @@ const executeTool = async (
     case "inbox_getDirectoryCounts": {
       const scoped = await getScopedServices(ctx, accountId);
       return { counts: await scoped.inboxAdapter.getDirectoryCounts() };
+    }
+    case "notifications_list": {
+      const scoped = await getScopedServices(ctx, accountId);
+      const args = toolSchemas[toolName].parse(argsRaw);
+      return scoped.inboxAdapter.listNotifications(args);
     }
     case "account_getConnections": {
       const scoped = await getScopedServices(ctx, accountId);

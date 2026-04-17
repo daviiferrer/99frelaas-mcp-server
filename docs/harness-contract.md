@@ -46,6 +46,13 @@ Keep these settings in the harness, not inside MCP runtime logic:
 3. The MCP validates input, resolves the account-scoped session, and executes the tool.
 4. The harness handles retries, queues, approvals, budgets, and agent coordination.
 
+## Discovery Strategy
+
+- Use list-level tools for triage first.
+- Only open project details for shortlisted items that match the target profile.
+- Only open owner or competitor profiles when that extra context changes the decision.
+- For inbox history, page `inbox_listConversations` with `start` and `limit` instead of assuming the first page is complete.
+
 ## Non-Hardcoded Principle
 
 Do not embed account names, agent names, or policy defaults in workflow code. Resolve them from harness config at runtime.

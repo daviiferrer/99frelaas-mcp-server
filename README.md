@@ -37,6 +37,7 @@ Private/local MCP adapter for 99Freelas, built around `stdio` transport and safe
 
 ## Prompts
 
+- `screen_projects_for_fit`
 - `analyze_project`
 - `draft_proposal`
 - `reply_inbox`
@@ -47,6 +48,7 @@ Private/local MCP adapter for 99Freelas, built around `stdio` transport and safe
 - `resource://99freelas/server-manifest`
 - `resource://99freelas/tool-catalog`
 - `resource://99freelas/prompt-catalog`
+- `resource://99freelas/operating-playbook`
 - `resource://99freelas/quickstart`
 
 ## Session Management
@@ -120,11 +122,13 @@ If you want to consume the MCP from another local app, point it at the repositor
 Recommended flow:
 
 1. `projects_list` or `projects_listByAvailability`
-2. `projects_get`
-3. `profiles_get` when the client context matters
-4. `projects_getBidContext`
-5. `proposals_send` when the project is eligible
-6. `inbox_getThread` before replying to a client
+2. shortlist only high-fit items from list-level fields
+3. `projects_get` only for shortlisted projects
+4. `profiles_get` when the client context matters
+5. `projects_getBidContext`
+6. `proposals_send` when the project is eligible
+7. `inbox_listConversations` with `start/limit` when you need older history
+8. `inbox_getThread` before replying to a client
 
 The consuming app should keep the long-running reasoning loop, cron, notifications, and approval logic outside the MCP server.
 

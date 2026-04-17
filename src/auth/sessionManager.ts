@@ -77,4 +77,17 @@ export class SessionManager {
     logger.info("session.clear", { accountId });
     await this.sessionStore.clearActive(accountId);
   }
+
+  async listSessions(): Promise<Array<{
+    accountId: string;
+    sessionId: string;
+    userId?: string;
+    username?: string;
+    lastValidatedAt?: string;
+    updatedAt: string;
+    active: boolean;
+    cookieNames: string[];
+  }>> {
+    return this.sessionStore.listSessions();
+  }
 }
