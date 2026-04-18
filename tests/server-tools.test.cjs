@@ -266,10 +266,18 @@ test("server tools end-to-end in memory", async () => {
 
   const { localDateKey } = require("../dist/utils/time.js");
   const today = localDateKey(new Date(), "America/Sao_Paulo");
-  ctx.proposalDayCounter.set(`default:${today}:proposals`, ctx.proposalsDailyLimit);
+  ctx.proposalDayCounter.set(`default:${today}:proposals`, 5);
   const limitHit = await client.callTool({
     name: "proposals_send",
-    arguments: { projectId: 77, offerCents: 50000, durationDays: 5, proposalText: "texto de proposta suficiente", promote: false, dryRun: false },
+    arguments: {
+      projectId: 77,
+      offerCents: 50000,
+      durationDays: 5,
+      proposalText: "texto de proposta suficiente",
+      promote: false,
+      dryRun: false,
+      proposalsDailyLimit: 5,
+    },
   });
   assert.equal(limitHit.isError, true);
 

@@ -289,7 +289,7 @@ const resourceText = (uri: string): string => {
         {
           name: "99freelas-mcp-server",
           version: "0.1.0",
-          transport: "stdio",
+          transports: ["stdio", "streamable-http"],
           baseUrl: BASE_URL,
           authentication: {
             mode: "manual cookie import",

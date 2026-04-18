@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: 99freelas-mcp-server
+    runtime: docker
+    healthCheckPath: /healthz
+    envVars:
+      - key: SESSION_ENCRYPTION_KEY_BASE64
+        sync: false
+      - key: MCP_API_KEY
+        sync: false
+      - key: STATE_DB_FILE
+        value: /var/data/state.sqlite
+      - key: STATE_DB_JOURNAL_MODE
+        value: DELETE
+      - key: LOG_FILE
+        value: /var/data/server.log
+      - key: MANUAL_COOKIES_FILE
+        value: /var/data/manual-cookies.json
+      - key: LOG_LEVEL
+        value: info
+      - key: LOG_STDERR
+        value: "true"
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1

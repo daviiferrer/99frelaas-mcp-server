@@ -29,5 +29,5 @@ RUN mkdir -p /app/.data \
 
 USER node
 
-# MCP stdio server entrypoint
-CMD ["node", "dist/index.js"]
+# MCP Streamable HTTP server entrypoint for container hosts such as Render.
+CMD ["node", "dist/http.js"]

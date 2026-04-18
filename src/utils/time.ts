@@ -8,12 +8,7 @@ export const startOfDayIso = (): string => {
 
 const DEFAULT_OPERATION_TIMEZONE = "America/Sao_Paulo";
 
-export const resolveOperationTimeZone = (): string => {
-  const raw = process.env.OPERATION_TIMEZONE?.trim();
-  return raw && raw.length > 0 ? raw : DEFAULT_OPERATION_TIMEZONE;
-};
-
-export const localDateKey = (value = new Date(), timeZone = resolveOperationTimeZone()): string => {
+export const localDateKey = (value = new Date(), timeZone = DEFAULT_OPERATION_TIMEZONE): string => {
   try {
     const parts = new Intl.DateTimeFormat("en-US", {
       timeZone,

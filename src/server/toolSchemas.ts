@@ -105,6 +105,8 @@ export const toolSchemas = {
     proposalText: z.string().min(10),
     promote: z.boolean().optional().default(false),
     dryRun: z.boolean().optional().default(false),
+    proposalsDailyLimit: z.number().int().positive().optional(),
+    operationTimeZone: z.string().min(1).optional().default("America/Sao_Paulo"),
   }),
   inbox_listConversations: z.object({
     accountId: z.string().min(1).optional().default("default"),
@@ -322,6 +324,16 @@ export const toolInputJsonSchemas: Record<string, JsonSchema> = {
       proposalText: { type: "string", description: "Client-facing proposal text. Do not include external contact details." },
       promote: { type: "boolean", default: false },
       dryRun: { type: "boolean", default: false, description: "Use true to validate payload/flow without sending a real proposal." },
+      proposalsDailyLimit: {
+        type: "number",
+        minimum: 1,
+        description: "Optional request-scoped daily proposal cap. Omit to skip MCP-level daily cap enforcement.",
+      },
+      operationTimeZone: {
+        type: "string",
+        default: "America/Sao_Paulo",
+        description: "Timezone used only when proposalsDailyLimit is provided.",
+      },
     },
     required: ["projectId", "offerCents", "durationDays", "proposalText"],
     additionalProperties: false,

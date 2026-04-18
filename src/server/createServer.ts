@@ -39,7 +39,7 @@ import {
 } from "../domain/skillsCatalog";
 import { extractAuthenticatedUsernameFromHtml } from "../parsers/authIdentityParser";
 import { readResponseText } from "../clients/responseText";
-import { localDateKey, resolveOperationTimeZone } from "../utils/time";
+import { localDateKey } from "../utils/time";
 
 type ToolInputName = keyof typeof toolSchemas;
 
@@ -63,9 +63,7 @@ export type AppContext = {
   rateLimiter: RateLimiter;
   cacheStore: CacheStore;
   auditLog: AuditLogStore;
-  proposalsDailyLimit: number;
-  proposalDayCounter: Map<string, number>;
-  operationTimeZone?: string;
+  proposalDayCounter?: Map<string, number>;
 };
 
 /* c8 ignore start */
@@ -224,7 +222,7 @@ const getDailyProposalCount = async (ctx: AppContext, accountId: string, dayKey:
   if (typeof store.getDailyProposalCount === "function") {
     return store.getDailyProposalCount(dayKey, accountId);
   }
-  return ctx.proposalDayCounter.get(proposalCounterKey(accountId, dayKey)) ?? 0;
+  return ctx.proposalDayCounter?.get(proposalCounterKey(accountId, dayKey)) ?? 0;
 };
 
 const incrementDailyProposalCount = async (
@@ -238,7 +236,7 @@ const incrementDailyProposalCount = async (
     await store.incrementDailyProposalCount(dayKey, accountId);
     return;
   }
-  ctx.proposalDayCounter.set(proposalCounterKey(accountId, dayKey), fallbackCurrentCount + 1);
+  ctx.proposalDayCounter?.set(proposalCounterKey(accountId, dayKey), fallbackCurrentCount + 1);
 };
 
 const executeTool = async (
@@ -362,11 +360,14 @@ const executeTool = async (
     case "proposals_send": {
       const scoped = await getScopedServices(ctx, accountId);
       const args = toolSchemas[toolName].parse(argsRaw);
-      const operationTimeZone = ctx.operationTimeZone ?? resolveOperationTimeZone();
-      const day = localDateKey(new Date(), operationTimeZone);
-      const sentToday = await getDailyProposalCount(ctx, accountId, day);
-      if (sentToday >= ctx.proposalsDailyLimit) {
-        throw new AdapterError("Daily proposals limit reached", "PROPOSALS_DAILY_LIMIT");
+      let sentToday = 0;
+      let day: string | undefined;
+      if (args.proposalsDailyLimit !== undefined) {
+        day = localDateKey(new Date(), args.operationTimeZone);
+        sentToday = await getDailyProposalCount(ctx, accountId, day);
+        if (sentToday >= args.proposalsDailyLimit) {
+          throw new AdapterError("Daily proposals limit reached", "PROPOSALS_DAILY_LIMIT");
+        }
       }
       if (!args.dryRun && (await ctx.cacheStore.hasProposal(args.projectId, accountId))) {
         throw new AdapterError("Duplicate proposal blocked", "PROPOSAL_DUPLICATE");
@@ -386,7 +387,9 @@ const executeTool = async (
       const result = await scoped.proposalsAdapter.send(args);
       if (!args.dryRun && result.ok) {
         await ctx.cacheStore.markProposal(args.projectId, accountId);
-        await incrementDailyProposalCount(ctx, accountId, day, sentToday);
+        if (day !== undefined) {
+          await incrementDailyProposalCount(ctx, accountId, day, sentToday);
+        }
       }
       logger.info("tool.result", { toolName, accountId, ok: result.ok, projectId: args.projectId, dryRun: args.dryRun });
       await ctx.auditLog.append("proposals_send", {

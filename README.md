@@ -1,52 +1,277 @@
-# 99Freelas MCP Server
+<p align="center">
+  <img src="icone.png" alt="99Freelas MCP Server logo" width="112" />
+</p>
 
-Private/local MCP adapter for 99Freelas, built around `stdio` transport and safe, deterministic tool exposure.
+<h1 align="center">99Freelas MCP Server</h1>
 
-## Quick Install
+<p align="center">
+  MCP adapter for 99Freelas with local <code>stdio</code> support, remote Streamable HTTP support, encrypted session storage, and request-scoped operating controls.
+</p>
 
-1. Clone this repository from GitHub.
-2. Open the project folder in a terminal.
-3. Run `npm install`.
-4. Copy `.env.example` to `.env`.
-5. Set `SESSION_ENCRYPTION_KEY_BASE64` with a 32-byte base64 key.
-6. Run `npm run dev`.
+<p align="center">
+  <a href="#quick-start">Quick Start</a> |
+  <a href="#remote-http">Remote HTTP</a> |
+  <a href="#render-deploy">Render Deploy</a> |
+  <a href="#tools">Tools</a> |
+  <a href="#security-model">Security</a>
+</p>
 
-If you want another local app to use this MCP, point it at this repo path and keep the server running through the standard `stdio` entrypoint.
+## Overview
 
-## What this server is for
+This server exposes a focused Model Context Protocol interface for operating a 99Freelas account from an agent runtime. It keeps orchestration policy outside the MCP and provides deterministic tools for account sessions, project discovery, bid context, proposals, inbox workflows, profile updates, prompts, and reference resources.
 
-- Private/local integration only.
-- Session-based authentication via encrypted cookie import.
-- Read-first flows for projects, profiles, inbox, and proposals.
-- Guardrails by default: rate limiting, deduplication, dry-run support, audit logs, and redaction.
-- Prompt and resource surfaces for agent-oriented consumers.
+The server supports two official MCP transport styles:
+
+- `stdio` for local clients that spawn the process directly.
+- Streamable HTTP for remote clients, hosted behind an API key.
+
+The HTTP transport is intended for deployments such as Render. The health route is deliberately separate from MCP so the hosting platform can verify liveness without credentials.
+
+## Capabilities
+
+- Encrypted cookie/session storage at rest.
+- Account-scoped sessions using `accountId`.
+- Agent correlation metadata using `agentId`.
+- Project listing, availability scanning, detail pages, and bid context.
+- Proposal sending with duplicate protection and dry-run support.
+- Inbox conversation listing, thread reads, replies, directory counts, and notifications.
+- Account dashboard, connection balance, and subscription status.
+- Profile edit-state inspection, profile updates, public profile reads, and validated skill IDs.
+- MCP prompts and resources for agent-oriented workflows.
+- Remote HTTP API key protection.
+- Render-ready `/healthz` route and `render.yaml` blueprint.
+
+## Quick Start
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Create your local environment file:
+
+```bash
+cp .env.example .env
+```
+
+Set `SESSION_ENCRYPTION_KEY_BASE64` to a base64 value that decodes to exactly 32 bytes.
+
+Generate one with Node:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+Run the local `stdio` MCP server:
+
+```bash
+npm run dev
+```
+
+Use this mode when your MCP client starts the server as a local child process.
+
+## Remote HTTP
+
+Run the Streamable HTTP MCP server locally:
+
+```bash
+npm run dev:http
+```
+
+Required HTTP environment variable:
+
+```env
+MCP_API_KEY=change-this-to-a-long-random-secret
+```
+
+MCP endpoint:
+
+```text
+POST   /mcp
+GET    /mcp
+DELETE /mcp
+```
+
+Health endpoint:
+
+```text
+GET /healthz
+```
+
+Every `/mcp` request must authenticate with:
+
+```http
+Authorization: Bearer <MCP_API_KEY>
+```
+
+For simpler agent runtimes, this is also accepted:
+
+```http
+x-api-key: <MCP_API_KEY>
+```
+
+Do not put the API key in query strings.
+
+## Render Deploy
+
+This repository includes [render.yaml](render.yaml) for Blueprint-based deploys.
+
+Render settings:
+
+- Runtime: Docker
+- Health check path: `/healthz`
+- MCP URL: `https://<your-service>.onrender.com/mcp`
+- Start command: Dockerfile default, `node dist/http.js`
+
+Required Render environment variables:
+
+```env
+SESSION_ENCRYPTION_KEY_BASE64=...
+MCP_API_KEY=...
+```
+
+Recommended persistent disk variables:
+
+```env
+STATE_DB_FILE=/var/data/state.sqlite
+STATE_DB_JOURNAL_MODE=DELETE
+LOG_FILE=/var/data/server.log
+MANUAL_COOKIES_FILE=/var/data/manual-cookies.json
+```
+
+The included Blueprint already defines a `/var/data` disk and sets these paths. Render preserves values marked with `sync: false`, so secrets should be entered in the Render dashboard.
+
+## Docker
+
+Build the image:
+
+```bash
+npm run docker:build
+```
+
+Run the HTTP container:
+
+```bash
+npm run docker:run
+```
+
+Or use Compose:
+
+```bash
+docker compose up --build
+```
+
+The container entrypoint runs the HTTP transport. For local `stdio`, use `npm run dev` directly from the repository.
+
+## Environment
+
+Minimum required variables:
+
+```env
+SESSION_ENCRYPTION_KEY_BASE64=...
+MCP_API_KEY=...
+```
+
+`MCP_API_KEY` is only required for HTTP transport. `stdio` clients do not use HTTP auth.
+
+Optional technical variables:
+
+```env
+HOST=0.0.0.0
+PORT=3000
+MCP_HTTP_PATH=/mcp
+NINETY_NINE_BASE_URL=https://www.99freelas.com.br
+STATE_DB_FILE=.data/state.sqlite
+STATE_DB_JOURNAL_MODE=WAL
+RATE_LIMIT_REQUESTS_PER_MINUTE=60
+ALLOW_MANUAL_COOKIE_FALLBACK=false
+MANUAL_COOKIES_FILE=.data/manual-cookies.json
+LOG_LEVEL=info
+LOG_FILE=.data/server.log
+LOG_STDERR=false
+```
+
+Legacy migration variables, only needed if old JSON state files still exist:
+
+```env
+SESSION_FILE=.data/sessions.json
+CACHE_FILE=.data/cache.json
+```
+
+Business policy should be passed by request, not as global environment. For example, `proposalsDailyLimit` and `operationTimeZone` are optional fields on `proposals_send`.
+
+## Session Management
+
+Authentication is based on imported 99Freelas browser cookies. Raw cookies are never returned by tools.
+
+Recommended flow:
+
+1. Export cookies from your browser.
+2. Call `auth_importCookies` with `cookiesJson`, `cookies`, or `filePath`.
+3. Call `auth_checkSession`.
+4. Use authenticated tools with the same `accountId`.
+
+Sessions are isolated by `accountId`, which lets one MCP process manage multiple account namespaces. Operational state is persisted in SQLite, including session records, dedupe markers, audit records, rate-limit windows, and request-scoped proposal counters when used.
+
+## Security Model
+
+This server is designed for trusted agent runtimes, not anonymous public use.
+
+- HTTP MCP access requires `MCP_API_KEY`.
+- `/healthz` is public and returns only liveness metadata.
+- Session cookies are encrypted with `SESSION_ENCRYPTION_KEY_BASE64`.
+- Logs and audit events redact sensitive values.
+- Proposal and message duplicate checks are enforced by the MCP.
+- Negotiation policy, budgets, approvals, and campaign rules belong in the calling agent or orchestration layer.
+
+Treat `MCP_API_KEY` and `SESSION_ENCRYPTION_KEY_BASE64` as production secrets.
 
 ## Tools
+
+Authentication:
 
 - `auth_importCookies`
 - `auth_checkSession`
 - `auth_clearSession`
-- `profile_getInterestCatalog`
-- `profile_getEditState`
-- `skills_getCatalog`
-- `skills_getStacks`
-- `skills_getSelectionGuide`
-- `profile_update`
+- `auth_listSessions`
+
+Projects and proposals:
+
 - `projects_listCategories`
 - `projects_list`
 - `projects_listByAvailability`
 - `projects_get`
 - `projects_getBidContext`
 - `proposals_send`
+
+Inbox and notifications:
+
 - `inbox_listConversations`
 - `inbox_getMessages`
 - `inbox_getThread`
 - `inbox_sendMessage`
 - `inbox_getDirectoryCounts`
+- `notifications_list`
+
+Account:
+
 - `account_getConnections`
 - `account_getDashboardSummary`
 - `account_getSubscriptionStatus`
+
+Profile and skills:
+
+- `profile_getInterestCatalog`
+- `profile_getEditState`
+- `profile_update`
 - `profiles_get`
+- `skills_getCatalog`
+- `skills_getStacks`
+- `skills_getSelectionGuide`
+
+System:
+
 - `system_health`
 
 ## Prompts
@@ -76,93 +301,51 @@ Resource templates:
 - `resource://99freelas/skills-catalog/page/{offset}`
 - `resource://99freelas/skills-catalog/search/{query}`
 
-## Session Management
+## Agent Workflow
 
-The server stores authenticated cookies encrypted at rest and persists operational state in SQLite.
-
-- Export cookies from your browser.
-- Save them to `MANUAL_COOKIES_FILE` or pass them directly to `auth_importCookies`.
-- If an authenticated tool runs without an active session, the server fails closed unless `ALLOW_MANUAL_COOKIE_FALLBACK=true`.
-- Sessions are resolved by `accountId` so the same MCP process can serve multiple accounts in parallel.
-- State lives in `STATE_DB_FILE` by default. Legacy JSON session/cache files are imported on first boot if present.
-- Proposal daily limits are persisted in SQLite per `accountId` and per operation day.
-- Rate-limit windows are persisted in SQLite per `accountId:toolName`.
-- Operation day keys default to `America/Sao_Paulo` and can be overridden with `OPERATION_TIMEZONE`.
-- `STATE_DB_JOURNAL_MODE` defaults to `WAL`. On Docker Desktop bind mounts (especially Windows/macOS host filesystems), prefer `DELETE` to avoid WAL/SHM startup failures.
-
-## Multiagent contract
-
-The harness should pass these identifiers explicitly to the MCP:
-
-- `accountId`: isolates session, cache, and daily counters.
-- `agentId`: optional correlation metadata for audit and tracing.
-
-Recommended convention examples:
-
-- `scout:*` for project discovery and read-only research.
-- `proposal:*` for proposal drafting and sending.
-- `inbox:*` for reading and replying to messages.
-- `profile:*` for profile inspection and updates.
-- `orchestrator:*` for harness-level coordination and safe overrides.
-
-The MCP does not enforce ownership, budgets, or negotiation rules. Keep that policy in the harness. The MCP only validates tool input, resolves the account-scoped session, executes the request, and returns deterministic output.
-
-## Setup
-
-Use the quick install steps above for the normal path.
-
-## Installation methods
-
-### Local development
-
-1. Clone the repo.
-2. Run `npm install`.
-3. Configure `.env`.
-4. Run `npm run dev`.
-
-### Docker
-
-Build the image:
-
-```bash
-npm run docker:build
-```
-
-Run it over `stdio`:
-
-```bash
-npm run docker:run
-```
-
-Or use Compose:
-
-```bash
-docker compose up --build
-```
-
-If you want to consume the MCP from another local app, point it at the repository checkout and run the server through the standard `stdio` entrypoint.
-
-## Agent usage
-
-Recommended flow:
+Recommended project flow:
 
 1. `projects_list` or `projects_listByAvailability`
-2. shortlist only high-fit items from list-level fields
-3. `projects_get` only for shortlisted projects
-4. `profiles_get` when the client context matters
-5. `projects_getBidContext`
-6. `proposals_send` when the project is eligible
-7. `inbox_listConversations` with `start/limit` when you need older history
-8. `inbox_getThread` before replying to a client
+2. Shortlist only high-fit items from list-level fields.
+3. `projects_get` for shortlisted projects.
+4. `profiles_get` when client context changes the decision.
+5. `projects_getBidContext`.
+6. `proposals_send` with `dryRun=true` when uncertain.
+7. `proposals_send` without dry-run only when the bid context is eligible.
 
-The consuming app should keep the long-running reasoning loop, cron, notifications, and approval logic outside the MCP server.
+Recommended inbox flow:
+
+1. `inbox_getDirectoryCounts`
+2. `inbox_listConversations`
+3. `inbox_getThread`
+4. `inbox_sendMessage`
+
+The MCP executes scoped operations. The consuming agent should own long-running reasoning, schedules, approvals, campaign memory, and business strategy.
 
 ## Development
 
+Build:
+
 ```bash
-npm install
 npm run build
+```
+
+Test:
+
+```bash
 npm test
+```
+
+Run local `stdio`:
+
+```bash
+npm run dev
+```
+
+Run local HTTP:
+
+```bash
+npm run dev:http
 ```
 
 ## License
