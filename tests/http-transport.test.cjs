@@ -57,12 +57,11 @@ const makeCtx = () => ({
   auditLog: { async append() {} },
 });
 
-test("http transport exposes health and protects mcp with api key", async () => {
+test("http transport exposes health and accepts mcp requests", async () => {
   const { createServer } = require("../dist/server/createServer.js");
   const { startHttpServer } = require("../dist/transport/http.js");
 
   const running = await startHttpServer(() => createServer(makeCtx()), {
-    apiKey: "test-key",
     host: "127.0.0.1",
     port: 0,
   });
@@ -72,25 +71,7 @@ test("http transport exposes health and protects mcp with api key", async () => 
     assert.equal(health.status, 200);
     assert.deepEqual(await health.json(), { ok: true, transport: "http" });
 
-    const unauthorized = await fetch(running.url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }),
-    });
-    assert.equal(unauthorized.status, 401);
-
-    const wrongKey = await fetch(running.url, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: "Bearer wrong-key" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }),
-    });
-    assert.equal(wrongKey.status, 401);
-
-    const transport = new StreamableHTTPClientTransport(new URL(running.url), {
-      requestInit: {
-        headers: { authorization: "Bearer test-key" },
-      },
-    });
+    const transport = new StreamableHTTPClientTransport(new URL(running.url));
     const client = new Client({ name: "http-test-client", version: "0.1.0" }, { capabilities: {} });
     await client.connect(transport);
     const tools = await client.listTools();

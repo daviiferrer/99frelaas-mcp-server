@@ -3,16 +3,7 @@ import { buildAppContext, buildServer } from "./index";
 import { logger } from "./security/logger";
 import { startHttpServer } from "./transport/http";
 
-const readRequiredEnv = (name: string): string => {
-  const value = process.env[name]?.trim();
-  if (!value) {
-    throw new Error(`${name} is required for HTTP transport`);
-  }
-  return value;
-};
-
 export const runHttp = async (): Promise<void> => {
-  const apiKey = readRequiredEnv("MCP_API_KEY");
   const host = process.env.HOST?.trim() || "0.0.0.0";
   const port = Number(process.env.PORT ?? 3000);
   const mcpPath = process.env.MCP_HTTP_PATH?.trim() || "/mcp";
@@ -22,7 +13,6 @@ export const runHttp = async (): Promise<void> => {
 
   const appContext = buildAppContext();
   const running = await startHttpServer(() => buildServer(appContext), {
-    apiKey,
     host,
     port,
     mcpPath,

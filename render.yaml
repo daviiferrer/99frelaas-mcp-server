@@ -6,8 +6,6 @@ services:
     envVars:
       - key: SESSION_ENCRYPTION_KEY_BASE64
         sync: false
-      - key: MCP_API_KEY
-        sync: false
       - key: STATE_DB_FILE
         value: /var/data/state.sqlite
       - key: STATE_DB_JOURNAL_MODE

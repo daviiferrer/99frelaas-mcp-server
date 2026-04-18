@@ -23,7 +23,7 @@ This server exposes a focused Model Context Protocol interface for operating a 9
 The server supports two official MCP transport styles:
 
 - `stdio` for local clients that spawn the process directly.
-- Streamable HTTP for remote clients, hosted behind an API key.
+- Streamable HTTP for remote clients.
 
 The HTTP transport is intended for deployments such as Render. The health route is deliberately separate from MCP so the hosting platform can verify liveness without credentials.
 
@@ -38,7 +38,6 @@ The HTTP transport is intended for deployments such as Render. The health route 
 - Account dashboard, connection balance, and subscription status.
 - Profile edit-state inspection, profile updates, public profile reads, and validated skill IDs.
 - MCP prompts and resources for agent-oriented workflows.
-- Remote HTTP API key protection.
 - Render-ready `/healthz` route and `render.yaml` blueprint.
 
 ## Quick Start
@@ -79,12 +78,6 @@ Run the Streamable HTTP MCP server locally:
 npm run dev:http
 ```
 
-Required HTTP environment variable:
-
-```env
-MCP_API_KEY=change-this-to-a-long-random-secret
-```
-
 MCP endpoint:
 
 ```text
@@ -98,20 +91,6 @@ Health endpoint:
 ```text
 GET /healthz
 ```
-
-Every `/mcp` request must authenticate with:
-
-```http
-Authorization: Bearer <MCP_API_KEY>
-```
-
-For simpler agent runtimes, this is also accepted:
-
-```http
-x-api-key: <MCP_API_KEY>
-```
-
-Do not put the API key in query strings.
 
 ## Render Deploy
 
@@ -128,7 +107,7 @@ Required Render environment variables:
 
 ```env
 SESSION_ENCRYPTION_KEY_BASE64=...
-MCP_API_KEY=...
+STATE_DB_FILE=/var/data/state.sqlite
 ```
 
 Recommended persistent disk variables:
@@ -170,10 +149,8 @@ Minimum required variables:
 
 ```env
 SESSION_ENCRYPTION_KEY_BASE64=...
-MCP_API_KEY=...
+STATE_DB_FILE=.data/state.sqlite
 ```
-
-`MCP_API_KEY` is only required for HTTP transport. `stdio` clients do not use HTTP auth.
 
 Optional technical variables:
 
@@ -218,14 +195,13 @@ Sessions are isolated by `accountId`, which lets one MCP process manage multiple
 
 This server is designed for trusted agent runtimes, not anonymous public use.
 
-- HTTP MCP access requires `MCP_API_KEY`.
 - `/healthz` is public and returns only liveness metadata.
 - Session cookies are encrypted with `SESSION_ENCRYPTION_KEY_BASE64`.
 - Logs and audit events redact sensitive values.
 - Proposal and message duplicate checks are enforced by the MCP.
 - Negotiation policy, budgets, approvals, and campaign rules belong in the calling agent or orchestration layer.
 
-Treat `MCP_API_KEY` and `SESSION_ENCRYPTION_KEY_BASE64` as production secrets.
+Treat `SESSION_ENCRYPTION_KEY_BASE64` as a production secret.
 
 ## Tools
 
