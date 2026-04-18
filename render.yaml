@@ -7,18 +7,18 @@ services:
       - key: SESSION_ENCRYPTION_KEY_BASE64
         sync: false
       - key: STATE_DB_FILE
-        value: /var/data/state.sqlite
+        value: .data/state.sqlite
       - key: STATE_DB_JOURNAL_MODE
         value: DELETE
       - key: LOG_FILE
-        value: /var/data/server.log
+        value: .data/server.log
       - key: MANUAL_COOKIES_FILE
-        value: /var/data/manual-cookies.json
+        value: .data/manual-cookies.json
       - key: LOG_LEVEL
         value: info
       - key: LOG_STDERR
         value: "true"
     disk:
       name: data
-      mountPath: /var/data
+      mountPath: /app/.data
       sizeGB: 1

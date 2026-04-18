@@ -107,19 +107,19 @@ Required Render environment variables:
 
 ```env
 SESSION_ENCRYPTION_KEY_BASE64=...
-STATE_DB_FILE=/var/data/state.sqlite
+STATE_DB_FILE=.data/state.sqlite
 ```
 
 Recommended persistent disk variables:
 
 ```env
-STATE_DB_FILE=/var/data/state.sqlite
+STATE_DB_FILE=.data/state.sqlite
 STATE_DB_JOURNAL_MODE=DELETE
-LOG_FILE=/var/data/server.log
-MANUAL_COOKIES_FILE=/var/data/manual-cookies.json
+LOG_FILE=.data/server.log
+MANUAL_COOKIES_FILE=.data/manual-cookies.json
 ```
 
-The included Blueprint already defines a `/var/data` disk and sets these paths. Render preserves values marked with `sync: false`, so secrets should be entered in the Render dashboard.
+The included Blueprint already defines a `/app/.data` disk and sets these paths. Render preserves values marked with `sync: false`, so secrets should be entered in the Render dashboard.
 
 ## Docker
 
