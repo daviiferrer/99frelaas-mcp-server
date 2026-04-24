@@ -19,7 +19,7 @@ set +a
 STACK_HOSTNAME="${MCP_HOSTNAME:-}"
 WEBHOOK_PATH="${GITHUB_WEBHOOK_PATH:-/webhooks/github}"
 DEPLOY_BRANCH="${GITHUB_WEBHOOK_BRANCH:-master}"
-PUBLIC_PORT="${PUBLIC_PORT:-3001}"
+WEBHOOK_HOSTNAME="${GITHUB_WEBHOOK_HOSTNAME:-webhook.${STACK_HOSTNAME}}"
 
 if [[ -z "${STACK_HOSTNAME}" ]]; then
   echo "MCP_HOSTNAME is required. Set it in /srv/99freelas-mcp-server/deploy.env or export it before running." >&2
@@ -52,27 +52,51 @@ docker build \
 
 main_http_rule_label="$(printf 'traefik.http.routers.%s-http.rule=Host(`%s`)' "${SERVICE_NAME}" "${STACK_HOSTNAME}")"
 main_https_rule_label="$(printf 'traefik.http.routers.%s-https.rule=Host(`%s`)' "${SERVICE_NAME}" "${STACK_HOSTNAME}")"
-publish_spec="published=${PUBLIC_PORT},target=3000,protocol=tcp,mode=host"
-current_ports="$(docker service inspect "${SERVICE_NAME}" --format '{{json .Endpoint.Ports}}' 2>/dev/null || true)"
-publish_add_args=()
-if [[ "${current_ports}" != *"\"PublishedPort\":${PUBLIC_PORT}"* ]]; then
-  publish_add_args=(--publish-add "${publish_spec}")
+webhook_rule_label="$(printf 'traefik.http.routers.%s-webhook.rule=Host(`%s`) && Path(`%s`)' "${SERVICE_NAME}" "${WEBHOOK_HOSTNAME}" "${WEBHOOK_PATH}")"
+
+service_exists=false
+if docker service inspect "${SERVICE_NAME}" >/dev/null 2>&1; then
+  service_exists=true
 fi
 
-if docker service inspect "${SERVICE_NAME}" >/dev/null 2>&1; then
+current_ports=""
+current_env=""
+if [[ "${service_exists}" == "true" ]]; then
+  current_ports="$(docker service inspect "${SERVICE_NAME}" --format '{{json .Endpoint.Ports}}')"
+  current_env="$(docker service inspect "${SERVICE_NAME}" --format '{{json .Spec.TaskTemplate.ContainerSpec.Env}}')"
+fi
+
+publish_rm_args=()
+if [[ "${current_ports}" == *"\"TargetPort\":3000"* ]]; then
+  publish_rm_args=(--publish-rm 3000)
+fi
+
+env_rm_args=()
+if [[ "${current_env}" == *"PUBLIC_PORT="* ]]; then
+  env_rm_args=(--env-rm PUBLIC_PORT)
+fi
+
+if [[ "${service_exists}" == "true" ]]; then
   docker service update \
     --image "${IMAGE_NAME}:${BUILD_TAG}" \
     --force \
+    "${publish_rm_args[@]}" \
+    "${env_rm_args[@]}" \
     --env-add "GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}" \
     --env-add "GITHUB_WEBHOOK_PATH=${WEBHOOK_PATH}" \
     --env-add "GITHUB_WEBHOOK_BRANCH=${DEPLOY_BRANCH}" \
     --env-add "GITHUB_WEBHOOK_REPOSITORY=${GITHUB_WEBHOOK_REPOSITORY:-daviiferrer/99frelaas-mcp-server}" \
-    --env-add "PUBLIC_PORT=${PUBLIC_PORT}" \
+    --env-add "GITHUB_WEBHOOK_HOSTNAME=${WEBHOOK_HOSTNAME}" \
     --env-add "DEPLOY_REPO_DIR=/repo" \
     --env-add "DEPLOY_SCRIPT_PATH=/repo/scripts/deploy-vps.sh" \
-    "${publish_add_args[@]}" \
     --label-add "${main_http_rule_label}" \
     --label-add "${main_https_rule_label}" \
+    --label-add "traefik.http.routers.${SERVICE_NAME}-webhook.entrypoints=https" \
+    --label-add "traefik.http.routers.${SERVICE_NAME}-webhook.tls=true" \
+    --label-add "traefik.http.routers.${SERVICE_NAME}-webhook.tls.certresolver=letsencrypt" \
+    --label-add "traefik.http.routers.${SERVICE_NAME}-webhook.priority=100" \
+    --label-add "traefik.http.routers.${SERVICE_NAME}-webhook.service=${SERVICE_NAME}" \
+    --label-add "${webhook_rule_label}" \
     "${SERVICE_NAME}"
 else
   docker service create \
@@ -80,7 +104,6 @@ else
     --replicas 1 \
     --constraint node.role==manager \
     --network "${NETWORK_NAME}" \
-    --publish "${publish_spec}" \
     --mount type=bind,src="${DEPLOY_DIR}/data",dst=/app/.data \
     --mount type=bind,src="${DEPLOY_DIR}",dst=/repo \
     --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
@@ -103,7 +126,7 @@ else
     --env GITHUB_WEBHOOK_PATH="${WEBHOOK_PATH}" \
     --env GITHUB_WEBHOOK_BRANCH="${DEPLOY_BRANCH}" \
     --env GITHUB_WEBHOOK_REPOSITORY="${GITHUB_WEBHOOK_REPOSITORY:-daviiferrer/99frelaas-mcp-server}" \
-    --env PUBLIC_PORT="${PUBLIC_PORT}" \
+    --env GITHUB_WEBHOOK_HOSTNAME="${WEBHOOK_HOSTNAME}" \
     --env DEPLOY_REPO_DIR=/repo \
     --env DEPLOY_SCRIPT_PATH=/repo/scripts/deploy-vps.sh \
     --label traefik.enable=true \
@@ -116,5 +139,11 @@ else
     --label "traefik.http.routers.${SERVICE_NAME}-https.entrypoints=https" \
     --label "traefik.http.routers.${SERVICE_NAME}-https.tls=true" \
     --label "traefik.http.routers.${SERVICE_NAME}-https.tls.certresolver=letsencrypt" \
+    --label "traefik.http.routers.${SERVICE_NAME}-webhook.entrypoints=https" \
+    --label "traefik.http.routers.${SERVICE_NAME}-webhook.tls=true" \
+    --label "traefik.http.routers.${SERVICE_NAME}-webhook.tls.certresolver=letsencrypt" \
+    --label "traefik.http.routers.${SERVICE_NAME}-webhook.priority=100" \
+    --label "traefik.http.routers.${SERVICE_NAME}-webhook.service=${SERVICE_NAME}" \
+    --label "${webhook_rule_label}" \
     "${IMAGE_NAME}:${BUILD_TAG}"
 fi
