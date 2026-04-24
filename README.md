@@ -12,6 +12,7 @@
   <a href="#quick-start">Quick Start</a> |
   <a href="#remote-http">Remote HTTP</a> |
   <a href="#render-deploy">Render Deploy</a> |
+  <a href="#vps-deploy">VPS Deploy</a> |
   <a href="#tools">Tools</a> |
   <a href="#security-model">Security</a>
 </p>
@@ -120,6 +121,58 @@ MANUAL_COOKIES_FILE=.data/manual-cookies.json
 ```
 
 The included Blueprint already defines a `/app/.data` disk and sets these paths. Render preserves values marked with `sync: false`, so secrets should be entered in the Render dashboard.
+
+## VPS Deploy
+
+The repository also includes a GitHub Actions workflow for automatic deployment to a VPS using a self-hosted runner.
+
+Why this approach:
+
+- `push` to `master` can trigger deploys without GitHub-hosted runner minutes.
+- Self-hosted runners are free to use for GitHub Actions.
+- Secrets can stay on the VPS in a local env file instead of living in GitHub.
+
+Workflow file:
+
+- `.github/workflows/deploy-vps.yml`
+
+Deploy script:
+
+- `scripts/deploy-vps.sh`
+
+Expected VPS layout:
+
+```text
+/srv/99freelas-mcp-server/
+  deploy.env
+  data/
+```
+
+Example `deploy.env` contents:
+
+```env
+MCP_HOSTNAME=mcp.example.com
+SESSION_ENCRYPTION_KEY_BASE64=...
+NINETY_NINE_BASE_URL=https://www.99freelas.com.br
+ALLOW_MANUAL_COOKIE_FALLBACK=false
+```
+
+One-time runner setup:
+
+1. Install a GitHub self-hosted runner on the VPS.
+2. Register it with the repository using the label `99freelas-vps`.
+3. Make sure the VPS has Docker and access to the `easypanel` network.
+4. Create `/srv/99freelas-mcp-server/deploy.env`.
+5. Ensure Traefik is already running on the VPS with `letsencrypt` and the `redirect-to-https@file` middleware.
+
+What the workflow does:
+
+- Checks out the repo on the runner.
+- Builds the Docker image from the current `master`.
+- Recreates the Swarm service on the VPS with persistent data mounted from `/srv/99freelas-mcp-server/data`.
+- Publishes the app through Traefik using the hostname defined in `MCP_HOSTNAME`.
+
+The service is created as a Swarm service named `99freelas-mcp-server`. The deploy script removes the existing service first so labels and environment changes are always applied on the next push.
 
 ## Docker
 

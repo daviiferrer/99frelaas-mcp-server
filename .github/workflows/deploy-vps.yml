@@ -1,0 +1,22 @@
+name: deploy-vps
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, linux, x64, 99freelas-vps]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build and deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x scripts/deploy-vps.sh
+          ./scripts/deploy-vps.sh
