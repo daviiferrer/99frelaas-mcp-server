@@ -25,3 +25,12 @@
     volumes:
       - ./.data:/app/.data
     restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: ["tunnel", "--no-autoupdate", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN}"]
+    depends_on:
+      - 99freelas-mcp-server
+    env_file:
+      - .env
+    restart: unless-stopped
