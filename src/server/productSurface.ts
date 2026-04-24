@@ -288,7 +288,7 @@ const resourceText = (uri: string): string => {
       return JSON.stringify(
         {
           name: "99freelas-mcp-server",
-          version: "0.1.0",
+          version: "0.2.0",
           transports: ["stdio", "streamable-http"],
           baseUrl: BASE_URL,
           authentication: {
@@ -323,7 +323,7 @@ Core natural flows:
 - \`inbox_listConversations\` -> page through inbox history with \`start\` and \`limit\`.
 - \`inbox_getThread\` -> load the full thread before replying.
 - \`inbox_sendMessage\` -> send a reply without duplicating existing text.
-- \`notifications_list\` -> read notifications and optionally mark them as viewed.
+- \`notifications_list\` -> read notifications; pass \`markViewed=true\` only when you intentionally want to clear unread state.
 - \`auth_listSessions\` -> inspect stored account sessions and audit connected accounts without revealing cookies.
 - \`auth_clearSession\` -> disable the active session for one accountId.
 - \`account_getSubscriptionStatus\` -> check whether the account is premium before exclusive bids.
@@ -370,7 +370,7 @@ If a project is outside the target area, do not open details unless there is an 
 ## Notifications
 
 1. Use \`notifications_list\` to read recent alerts.
-2. Set \`markViewed=true\` only when you want to clear the unread state after reading.
+2. Leave \`markViewed=false\` for inspection; set \`markViewed=true\` only when you want to clear the unread state after reading.
 3. Treat acceptance, goal completion, and profile alerts as high-priority signals.
 
 ## Safe expansion

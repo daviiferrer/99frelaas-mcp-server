@@ -8,6 +8,7 @@ import {
   ListResourceTemplatesRequestSchema,
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
+  type ToolAnnotations,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { AccountAdapter } from "../adapters/accountAdapter";
@@ -98,7 +99,7 @@ const toolDescriptions: Record<ToolInputName, string> = {
   inbox_getThread: "Fetch full conversation plus directory counts for a given accountId. Best default before composing a reply.",
   inbox_sendMessage: "Send a message to a conversation for a given accountId. Use after inbox_getThread and avoid duplicate/unsolicited messages.",
   inbox_getDirectoryCounts: "Get inbox directory counts such as unread/inbox/highlighted for a given accountId.",
-  notifications_list: "List notifications for a given accountId and optionally mark them as viewed after reading them.",
+  notifications_list: "List notifications for a given accountId. Reads do not clear unread state unless markViewed=true is explicitly passed.",
   account_getConnections: "Get available 99Freelas connections for a given accountId before sending proposals.",
   account_getDashboardSummary: "Get login/account summary, connections, and account indicators for a given accountId before proposals.",
   account_getSubscriptionStatus: "Inspect the /subscriptions page to determine whether the account has an active subscription for a given accountId.",
@@ -107,6 +108,62 @@ const toolDescriptions: Record<ToolInputName, string> = {
   system_health: "Check MCP connectivity and session loading for a given accountId namespace.",
 };
 /* c8 ignore end */
+
+const readOnlyTool = (title: string): ToolAnnotations => ({
+  title,
+  readOnlyHint: true,
+  openWorldHint: false,
+});
+
+const accountWriteTool = (
+  title: string,
+  destructiveHint: boolean,
+  idempotentHint = false,
+): ToolAnnotations => ({
+  title,
+  readOnlyHint: false,
+  destructiveHint,
+  idempotentHint,
+  openWorldHint: false,
+});
+
+const outboundWriteTool = (title: string): ToolAnnotations => ({
+  title,
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: true,
+});
+
+const toolAnnotations: Record<ToolInputName, ToolAnnotations> = {
+  auth_importCookies: accountWriteTool("Import 99Freelas cookies", false, true),
+  auth_checkSession: readOnlyTool("Check 99Freelas session"),
+  auth_clearSession: accountWriteTool("Clear 99Freelas session", true, true),
+  auth_listSessions: readOnlyTool("List 99Freelas sessions"),
+  profile_getInterestCatalog: readOnlyTool("Get profile interest catalog"),
+  profile_getEditState: readOnlyTool("Get profile edit state"),
+  skills_getCatalog: readOnlyTool("Search skill catalog"),
+  skills_getStacks: readOnlyTool("Get curated skill stacks"),
+  skills_getSelectionGuide: readOnlyTool("Get skill selection guide"),
+  profile_update: accountWriteTool("Update freelancer profile", true),
+  projects_listCategories: readOnlyTool("List project categories"),
+  projects_list: readOnlyTool("List projects"),
+  projects_listByAvailability: readOnlyTool("List projects by availability"),
+  projects_get: readOnlyTool("Get project details"),
+  projects_getBidContext: readOnlyTool("Get project bid context"),
+  proposals_send: outboundWriteTool("Send proposal"),
+  inbox_listConversations: readOnlyTool("List inbox conversations"),
+  inbox_getMessages: readOnlyTool("Get inbox messages"),
+  inbox_getThread: readOnlyTool("Get inbox thread"),
+  inbox_sendMessage: outboundWriteTool("Send inbox message"),
+  inbox_getDirectoryCounts: readOnlyTool("Get inbox directory counts"),
+  notifications_list: accountWriteTool("List notifications", false),
+  account_getConnections: readOnlyTool("Get account connections"),
+  account_getDashboardSummary: readOnlyTool("Get dashboard summary"),
+  account_getSubscriptionStatus: readOnlyTool("Get subscription status"),
+  profiles_get: readOnlyTool("Get public profile"),
+  system_health: readOnlyTool("Check system health"),
+};
 
 const resolveAccountId = (argsRaw: unknown): string => {
   if (!argsRaw || typeof argsRaw !== "object") return "default";
@@ -130,7 +187,14 @@ const isManualFallbackEnabled = (): boolean => (process.env.ALLOW_MANUAL_COOKIE_
 
 const getAuthCookies = async (ctx: AppContext, accountId: string) => {
   try {
-    return await ctx.sessionManager.requireCookies(accountId);
+    const cookies = await ctx.sessionManager.requireCookies(accountId);
+    if (await verifySessionCookies(ctx, accountId, cookies)) {
+      return cookies;
+    }
+    throw new AdapterError(
+      "Stored session is no longer valid on 99Freelas. Import fresh cookies with auth_importCookies.",
+      "AUTH_REQUIRED",
+    );
   } catch {
     if (!isManualFallbackEnabled()) {
       throw new AdapterError(
@@ -148,6 +212,30 @@ const getAuthCookies = async (ctx: AppContext, accountId: string) => {
     });
     return cookies;
   }
+};
+
+const verifySessionCookies = async (ctx: AppContext, accountId: string, cookies: Cookie[]): Promise<boolean> => {
+  const scopedHttp = ctx.httpClient instanceof HttpClient ? ctx.httpClient.createChildWithCookies(cookies) : ctx.httpClient;
+  const response = await scopedHttp.request("/profile/edit");
+  let html = "";
+  try {
+    html = await readResponseText(response);
+  } catch {
+    if (response.ok) {
+      return true;
+    }
+    await ctx.sessionManager.clearSession(accountId);
+    await ctx.auditLog.append("session.invalidated", { accountId });
+    return false;
+  }
+  const username = extractAuthenticatedUsernameFromHtml(html);
+  const looksLoggedOut = /\/login\b|\/entrar\b|faça login|faca login|entrar na sua conta|login/i.test(html) || /\/login\b|\/entrar\b/i.test(response.url);
+  if (username || (!looksLoggedOut && response.ok)) {
+    return true;
+  }
+  await ctx.sessionManager.clearSession(accountId);
+  await ctx.auditLog.append("session.invalidated", { accountId });
+  return false;
 };
 
 const identifyAuthenticatedUsername = async (httpClient: HttpClient): Promise<string | undefined> => {
@@ -205,8 +293,16 @@ const getScopedServices = async (ctx: AppContext, accountId: string): Promise<Sc
   };
 };
 
+const asStructuredContent = (value: unknown): Record<string, unknown> => {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return { result: value };
+};
+
 const asToolOutput = (value: unknown, isError = false) => ({
   content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
+  structuredContent: asStructuredContent(value),
   isError,
 });
 
@@ -288,7 +384,13 @@ const executeTool = async (
     }
     case "auth_checkSession": {
       const state = await ctx.sessionManager.checkSession(accountId);
-      return { ok: true, session: state };
+      if (!state.isAuthenticated || state.cookiesPresent.length === 0) {
+        return { ok: true, session: state, verified: false };
+      }
+      const cookies = await ctx.sessionManager.requireCookies(accountId);
+      const alive = await verifySessionCookies(ctx, accountId, cookies);
+      const refreshed = await ctx.sessionManager.checkSession(accountId);
+      return { ok: true, session: refreshed, verified: alive };
     }
     case "auth_clearSession": {
       await ctx.sessionManager.clearSession(accountId);
@@ -490,7 +592,7 @@ export const createServer = (ctx: AppContext): Server => {
   const server = new Server(
     {
       name: "99freelas-mcp-server",
-      version: "0.1.0",
+      version: "0.2.0",
     },
     {
       capabilities: {
@@ -508,6 +610,7 @@ export const createServer = (ctx: AppContext): Server => {
       name,
       description: toolDescriptions[name],
       inputSchema: toolInputJsonSchemas[name],
+      annotations: toolAnnotations[name],
     })),
   }));
 

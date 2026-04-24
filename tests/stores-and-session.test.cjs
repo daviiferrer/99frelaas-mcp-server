@@ -172,6 +172,26 @@ test("session manager isolates by accountId", async () => {
   assert.equal((await manager.requireCookies("acc_2"))[0].value, "a2");
 });
 
+test("session manager clears expired cookies automatically", async () => {
+  const { SessionStore } = require("../dist/storage/sessionStore.js");
+  const { CookieStore } = require("../dist/auth/cookieStore.js");
+  const { SessionManager } = require("../dist/auth/sessionManager.js");
+  const manager = new SessionManager(new SessionStore(), new CookieStore());
+  const expiredAt = Math.floor(Date.now() / 1000) - 10;
+
+  await manager.createOrUpdateSession({
+    accountId: "expired_acc",
+    userId: "u-expired",
+    username: "expired-user",
+    cookies: [{ name: "JSESSIONID", value: "old", domain: ".99freelas.com.br", path: "/", expires: expiredAt }],
+  });
+
+  await assert.rejects(() => manager.requireCookies("expired_acc"), /cookies expired/i);
+  const state = await manager.checkSession("expired_acc");
+  assert.equal(state.isAuthenticated, false);
+  assert.equal(state.cookiesPresent.length, 0);
+});
+
 test("session store migrates legacy single-account file", async () => {
   const { SessionStore } = require("../dist/storage/sessionStore.js");
   await writeFile(

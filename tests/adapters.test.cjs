@@ -299,11 +299,11 @@ test("profile adapter", async () => {
   const catalog = await adapter.getInterestCatalog();
   assert.equal(catalog[0].items[0], "Análise de Dados & Estatística");
   const state = await adapter.getEditState();
-  assert.equal(state.interestCatalog[0].title, "AdministraÃ§Ã£o & Contabilidade");
+  assert.equal(state.interestCatalog[0].title, "Administração & Contabilidade");
   assert.equal(state.nickname, "carlos-vieira-mkt");
   assert.equal(state.photoPresent, true);
   assert.equal(state.interestAreaIds.includes(101), true);
-  assert.equal(state.interestAreas[0].label, "AnÃ¡lise de Dados & EstatÃ­stica");
+  assert.equal(state.interestAreas[0].label, "Análise de Dados & Estatística");
   assert.equal(state.skillIds.includes(1648), true);
   assert.equal(state.skillOptions[0].label, "Marketing Digital");
   assert.equal(typeof state.completenessScore, "number");

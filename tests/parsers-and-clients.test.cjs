@@ -116,12 +116,12 @@ test("parsers", async () => {
     <p>GestÃ£o de MÃ­dias Sociais | OrÃ§amento: Aberto | Publicado: 2 dias atrÃ¡s | Propostas: 51</p>
   `;
   const profile = parsePublicProfileHtml(profileHtml, "https://www.99freelas.com.br/user/Prkvit");
-  assert.equal(profile.displayName, "FÃ¡bio p.");
+  assert.equal(profile.displayName, "Fábio p.");
   assert.equal(profile.rating, 5);
   assert.equal(profile.projectsCompleted, 1);
   assert.equal(profile.recommendations, 1);
-  assert.equal(profile.history[0].title, "Clipador profissional para reels, TikTok e shorts com foco em viralizaÃ§Ã£o - Matheus B.");
-  assert.equal(profile.openProjects[0].title, "GestÃ£o de conteÃºdo e crescimento digital para empresa");
+  assert.equal(profile.history[0].title, "Clipador profissional para reels, TikTok e shorts com foco em viralização - Matheus B.");
+  assert.equal(profile.openProjects[0].title, "Gestão de conteúdo e crescimento digital para empresa");
 
   const primaryDetail = parseProjectDetailHtml(
     `DescriÃ§Ã£o do Projeto</h3><section>Primaria</section><div class="project-info"></div>`,

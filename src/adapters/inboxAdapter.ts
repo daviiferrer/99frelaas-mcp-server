@@ -64,16 +64,18 @@ export class InboxAdapter {
     const conversations = items
       .map((item) => ({
         conversationId: Number(item.conversationId ?? item.id ?? item.idConversa),
-        title: String(item.title ?? item.titulo ?? item.nomeProjeto ?? item.nome ?? "").trim() || undefined,
+        title: cleanText(String(item.title ?? item.titulo ?? item.nomeProjeto ?? item.nome ?? "")) || undefined,
         unreadCount: Number(item.unreadCount ?? item.naoLidas ?? item.qtdNaoLidas ?? 0) || undefined,
         lastMessagePreview:
-          String(
-            item.lastMessagePreview ??
-              (item.ultimaMensagem as Record<string, unknown> | undefined)?.descricaoCurta ??
-              item.ultimaMensagem ??
-              item.preview ??
-              "",
-          ).trim() || undefined,
+          cleanText(
+            String(
+              item.lastMessagePreview ??
+                (item.ultimaMensagem as Record<string, unknown> | undefined)?.descricaoCurta ??
+                item.ultimaMensagem ??
+                item.preview ??
+                "",
+            ),
+          ) || undefined,
       }))
       .filter((item) => Number.isFinite(item.conversationId));
     const hasMore = conversations.length >= limit;
@@ -124,7 +126,7 @@ export class InboxAdapter {
         return {
           messageId: Number(item.messageId ?? item.id ?? item.idMensagem) || undefined,
           authorType,
-          text: String(item.text ?? item.texto ?? item.mensagem ?? item.message ?? "").trim(),
+          text: cleanText(String(item.text ?? item.texto ?? item.mensagem ?? item.message ?? "")),
           sentAt: item.sentAt ?? item.enviadaEm ?? item.dataEnvio ?? item.dhCriacao
             ? String(item.sentAt ?? item.enviadaEm ?? item.dataEnvio ?? item.dhCriacao)
             : undefined,
@@ -219,7 +221,7 @@ export class InboxAdapter {
         return {
           messageId: Number(item.messageId ?? item.id ?? item.idMensagem) || undefined,
           authorType,
-          text: String(item.text ?? item.texto ?? item.mensagem ?? item.message ?? "").trim(),
+          text: cleanText(String(item.text ?? item.texto ?? item.mensagem ?? item.message ?? "")),
           sentAt: item.sentAt ?? item.enviadaEm ?? item.dataEnvio ?? item.dhCriacao
             ? String(item.sentAt ?? item.enviadaEm ?? item.dataEnvio ?? item.dhCriacao)
             : undefined,
@@ -246,7 +248,7 @@ export class InboxAdapter {
   }> {
     const startedAt = Date.now();
     const limit = Math.min(Math.max(input?.limit ?? 10, 1), 500);
-    const markViewed = input?.markViewed ?? true;
+    const markViewed = input?.markViewed ?? false;
     logger.info("notifications.list.start", { limit, markViewed });
 
     const response = await this.http.request(`/notifications/view?limit=${encodeURIComponent(String(limit))}`);

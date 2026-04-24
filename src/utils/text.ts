@@ -3,6 +3,19 @@ import { createHash } from "crypto";
 export const sha256Hex = (value: string): string =>
   createHash("sha256").update(value).digest("hex");
 
+const repairMojibake = (value: string): string => {
+  let current = value;
+  for (let index = 0; index < 2 && /(?:Ã.|Â.)/.test(current); index += 1) {
+    const repaired = current.replace(/(?:Ã.|Â.)+/g, (match) => {
+      const segment = Buffer.from(match, "latin1").toString("utf8");
+      return segment.includes("\uFFFD") ? match : segment;
+    });
+    if (repaired === current) break;
+    current = repaired;
+  }
+  return current;
+};
+
 export const decodeHtmlEntities = (text: string): string => {
   if (!text) return "";
 
@@ -32,15 +45,15 @@ export const decodeHtmlEntities = (text: string): string => {
     .replace(/&Ccedil;/g, "Ç")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/g, "'")
+    .replace(/&quot;|&ldquo;|&rdquo;/gi, '"')
+    .replace(/&#39;|&lsquo;|&rsquo;/gi, "'")
     .replace(/&amp;/gi, "&")
     .replace(/&nbsp;/gi, " ");
 
   decoded = decoded.replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
   decoded = decoded.replace(/&#x([a-f0-9]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
 
-  return decoded;
+  return repairMojibake(decoded);
 };
 
 export const cleanText = (text?: string): string => {

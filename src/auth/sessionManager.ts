@@ -7,6 +7,12 @@ import { SessionState } from "../domain/models";
 import { Cookie } from "../clients/httpClient";
 import { getErrorMeta, logger } from "../security/logger";
 
+const isCookieExpired = (cookie: Cookie, nowSeconds: number): boolean =>
+  typeof cookie.expires === "number" && cookie.expires > 0 && cookie.expires <= nowSeconds;
+
+const filterActiveCookies = (cookies: Cookie[], nowSeconds: number): Cookie[] =>
+  cookies.filter((cookie) => !isCookieExpired(cookie, nowSeconds));
+
 export class SessionManager {
   constructor(
     private readonly sessionStore: SessionStore,
@@ -45,14 +51,30 @@ export class SessionManager {
       logger.warn("session.require.fail", { accountId, reason: "no_active_session" });
       throw new AuthRequiredError("No active authenticated session");
     }
+    let cookies: Cookie[];
     try {
-      const cookies = this.cookieStore.fromStored(active);
-      logger.debug("session.require.ok", { accountId, cookieCount: cookies.length, sessionId: active.sessionId });
-      return cookies;
+      cookies = this.cookieStore.fromStored(active);
     } catch (error) {
       logger.error("session.require.decrypt_fail", { accountId, sessionId: active.sessionId, ...getErrorMeta(error) });
       throw error;
     }
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const validCookies = filterActiveCookies(cookies, nowSeconds);
+    if (validCookies.length === 0) {
+      await this.sessionStore.clearActive(accountId);
+      logger.warn("session.require.fail", { accountId, reason: "expired_cookies", sessionId: active.sessionId });
+      throw new AuthRequiredError("Stored cookies expired. Import a fresh session with auth_importCookies.");
+    }
+    if (validCookies.length !== cookies.length) {
+      await this.createOrUpdateSession({
+        accountId,
+        cookies: validCookies,
+        userId: active.userId,
+        username: active.username,
+      });
+    }
+    logger.debug("session.require.ok", { accountId, cookieCount: validCookies.length, sessionId: active.sessionId });
+    return validCookies;
   }
 
   async checkSession(accountId = "default"): Promise<SessionState> {
@@ -62,10 +84,26 @@ export class SessionManager {
       logger.debug("session.check.empty", { accountId });
       return { isAuthenticated: false, cookiesPresent: [] };
     }
-    logger.debug("session.check.ok", { accountId, sessionId: active.sessionId, cookieCount: active.cookies.length });
+    const cookies = this.cookieStore.fromStored(active);
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const validCookies = filterActiveCookies(cookies, nowSeconds);
+    if (validCookies.length === 0) {
+      await this.sessionStore.clearActive(accountId);
+      logger.info("session.check.pruned_expired", { accountId, sessionId: active.sessionId });
+      return { isAuthenticated: false, cookiesPresent: [] };
+    }
+    if (validCookies.length !== cookies.length) {
+      await this.createOrUpdateSession({
+        accountId,
+        cookies: validCookies,
+        userId: active.userId,
+        username: active.username,
+      });
+    }
+    logger.debug("session.check.ok", { accountId, sessionId: active.sessionId, cookieCount: validCookies.length });
     return {
-      isAuthenticated: active.cookies.length > 0,
-      cookiesPresent: active.cookies.map((c) => c.name),
+      isAuthenticated: validCookies.length > 0,
+      cookiesPresent: validCookies.map((c) => c.name),
       userId: active.userId,
       username: active.username,
       lastValidatedAt: active.lastValidatedAt,
