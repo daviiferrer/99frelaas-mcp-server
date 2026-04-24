@@ -19,6 +19,7 @@ set +a
 STACK_HOSTNAME="${MCP_HOSTNAME:-}"
 WEBHOOK_PATH="${GITHUB_WEBHOOK_PATH:-/webhooks/github}"
 DEPLOY_BRANCH="${GITHUB_WEBHOOK_BRANCH:-master}"
+WEBHOOK_HOSTNAME="${GITHUB_WEBHOOK_HOSTNAME:-webhook.${STACK_HOSTNAME}}"
 
 if [[ -z "${STACK_HOSTNAME}" ]]; then
   echo "MCP_HOSTNAME is required. Set it in /srv/99freelas-mcp-server/deploy.env or export it before running." >&2
@@ -51,7 +52,6 @@ docker build \
 
 main_http_rule_label="traefik.http.routers.${SERVICE_NAME}-http.rule=Host(\`${STACK_HOSTNAME}\`)"
 main_https_rule_label="traefik.http.routers.${SERVICE_NAME}-https.rule=Host(\`${STACK_HOSTNAME}\`)"
-webhook_http_rule_label="traefik.http.routers.${SERVICE_NAME}-webhook.rule=Host(\`${STACK_HOSTNAME}\`) && PathPrefix(\`${WEBHOOK_PATH}\`)"
 
 if docker service inspect "${SERVICE_NAME}" >/dev/null 2>&1; then
   docker service update \
@@ -61,6 +61,7 @@ if docker service inspect "${SERVICE_NAME}" >/dev/null 2>&1; then
     --env-add "GITHUB_WEBHOOK_PATH=${WEBHOOK_PATH}" \
     --env-add "GITHUB_WEBHOOK_BRANCH=${DEPLOY_BRANCH}" \
     --env-add "GITHUB_WEBHOOK_REPOSITORY=${GITHUB_WEBHOOK_REPOSITORY:-daviiferrer/99frelaas-mcp-server}" \
+    --env-add "GITHUB_WEBHOOK_HOSTNAME=${WEBHOOK_HOSTNAME}" \
     --env-add "DEPLOY_REPO_DIR=/repo" \
     --env-add "DEPLOY_SCRIPT_PATH=/repo/scripts/deploy-vps.sh" \
     --label-add "${main_http_rule_label}" \
@@ -95,6 +96,7 @@ else
     --env GITHUB_WEBHOOK_PATH="${WEBHOOK_PATH}" \
     --env GITHUB_WEBHOOK_BRANCH="${DEPLOY_BRANCH}" \
     --env GITHUB_WEBHOOK_REPOSITORY="${GITHUB_WEBHOOK_REPOSITORY:-daviiferrer/99frelaas-mcp-server}" \
+    --env GITHUB_WEBHOOK_HOSTNAME="${WEBHOOK_HOSTNAME}" \
     --env DEPLOY_REPO_DIR=/repo \
     --env DEPLOY_SCRIPT_PATH=/repo/scripts/deploy-vps.sh \
     --label traefik.enable=true \
@@ -112,6 +114,6 @@ else
     --label "traefik.http.routers.${SERVICE_NAME}-webhook.tls.certresolver=letsencrypt" \
     --label "traefik.http.routers.${SERVICE_NAME}-webhook.priority=100" \
     --label "traefik.http.services.${SERVICE_NAME}-webhook.loadbalancer.server.port=3000" \
-    --label "${webhook_http_rule_label}" \
+    --label "traefik.http.routers.${SERVICE_NAME}-webhook.rule=Host(\`${WEBHOOK_HOSTNAME}\`)" \
     "${IMAGE_NAME}:${BUILD_TAG}"
 fi
