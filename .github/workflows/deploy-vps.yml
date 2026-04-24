@@ -8,7 +8,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, linux, x64, 99freelas-vps]
+    runs-on: [self-hosted, 99freelas-vps]
 
     steps:
       - name: Checkout repository
