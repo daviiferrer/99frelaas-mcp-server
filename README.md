@@ -141,14 +141,14 @@ One-time setup:
 
 1. Clone this repository into `/srv/99freelas-mcp-server`.
 2. Copy [`deploy.env.example`](./deploy.env.example) to `/srv/99freelas-mcp-server/deploy.env` and fill the values.
-3. Use hostnames that resolve to the VPS, for example `mcp.72-60-61-187.sslip.io` and `webhook.72-60-61-187.sslip.io`, then create a GitHub webhook for `push` events targeting `https://<your-webhook-host>/webhooks/github`.
+3. Use Easypanel hostnames that resolve through the existing Traefik wildcard, for example `99freelas-mcp.8osm3q.easypanel.host` and `99freelas-mcp-webhook.8osm3q.easypanel.host`, then create a GitHub webhook for `push` events targeting `https://<your-webhook-host>/webhooks/github`.
 4. Set `GITHUB_WEBHOOK_SECRET` and `GITHUB_WEBHOOK_HOSTNAME` in `deploy.env`.
 5. Start the service with `docker service create` or the existing Swarm deploy flow.
 
 Example `deploy.env` contents:
 
 ```env
-MCP_HOSTNAME=mcp.72-60-61-187.sslip.io
+MCP_HOSTNAME=99freelas-mcp.8osm3q.easypanel.host
 SESSION_ENCRYPTION_KEY_BASE64=...
 NINETY_NINE_BASE_URL=https://www.99freelas.com.br
 ALLOW_MANUAL_COOKIE_FALLBACK=false
@@ -156,7 +156,7 @@ GITHUB_WEBHOOK_SECRET=...
 GITHUB_WEBHOOK_BRANCH=master
 GITHUB_WEBHOOK_REPOSITORY=daviiferrer/99frelaas-mcp-server
 GITHUB_WEBHOOK_PATH=/webhooks/github
-GITHUB_WEBHOOK_HOSTNAME=webhook.72-60-61-187.sslip.io
+GITHUB_WEBHOOK_HOSTNAME=99freelas-mcp-webhook.8osm3q.easypanel.host
 ```
 
 The deploy script is [`scripts/deploy-vps.sh`](./scripts/deploy-vps.sh). It fetches `master`, rebuilds the image, and updates the running Swarm service behind Traefik without relying on GitHub Actions.

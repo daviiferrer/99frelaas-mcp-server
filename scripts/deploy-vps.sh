@@ -101,6 +101,24 @@ if [[ "${service_exists}" == "true" ]]; then
     --label-add "traefik.http.routers.${SERVICE_NAME}-webhook.priority=100" \
     --label-add "traefik.http.routers.${SERVICE_NAME}-webhook.service=${SERVICE_NAME}" \
     --label-add "${webhook_rule_label}" \
+    --container-label-add "traefik.enable=true" \
+    --container-label-add "traefik.docker.network=${NETWORK_NAME}" \
+    --container-label-add "traefik.http.services.${SERVICE_NAME}.loadbalancer.server.port=3000" \
+    --container-label-add "${main_http_rule_label}" \
+    --container-label-add "traefik.http.routers.${SERVICE_NAME}-http.entrypoints=http" \
+    --container-label-add "traefik.http.routers.${SERVICE_NAME}-http.service=${SERVICE_NAME}" \
+    --container-label-add "traefik.http.routers.${SERVICE_NAME}-http.middlewares=redirect-to-https@file" \
+    --container-label-add "${main_https_rule_label}" \
+    --container-label-add "traefik.http.routers.${SERVICE_NAME}-https.entrypoints=https" \
+    --container-label-add "traefik.http.routers.${SERVICE_NAME}-https.service=${SERVICE_NAME}" \
+    --container-label-add "traefik.http.routers.${SERVICE_NAME}-https.tls=true" \
+    --container-label-add "traefik.http.routers.${SERVICE_NAME}-https.tls.certresolver=letsencrypt" \
+    --container-label-add "traefik.http.routers.${SERVICE_NAME}-webhook.entrypoints=https" \
+    --container-label-add "traefik.http.routers.${SERVICE_NAME}-webhook.tls=true" \
+    --container-label-add "traefik.http.routers.${SERVICE_NAME}-webhook.tls.certresolver=letsencrypt" \
+    --container-label-add "traefik.http.routers.${SERVICE_NAME}-webhook.priority=100" \
+    --container-label-add "traefik.http.routers.${SERVICE_NAME}-webhook.service=${SERVICE_NAME}" \
+    --container-label-add "${webhook_rule_label}" \
     "${SERVICE_NAME}"
 else
   docker service create \
@@ -151,5 +169,23 @@ else
     --label "traefik.http.routers.${SERVICE_NAME}-webhook.priority=100" \
     --label "traefik.http.routers.${SERVICE_NAME}-webhook.service=${SERVICE_NAME}" \
     --label "${webhook_rule_label}" \
+    --container-label traefik.enable=true \
+    --container-label "traefik.docker.network=${NETWORK_NAME}" \
+    --container-label "traefik.http.services.${SERVICE_NAME}.loadbalancer.server.port=3000" \
+    --container-label "${main_http_rule_label}" \
+    --container-label "traefik.http.routers.${SERVICE_NAME}-http.entrypoints=http" \
+    --container-label "traefik.http.routers.${SERVICE_NAME}-http.service=${SERVICE_NAME}" \
+    --container-label "traefik.http.routers.${SERVICE_NAME}-http.middlewares=redirect-to-https@file" \
+    --container-label "${main_https_rule_label}" \
+    --container-label "traefik.http.routers.${SERVICE_NAME}-https.entrypoints=https" \
+    --container-label "traefik.http.routers.${SERVICE_NAME}-https.service=${SERVICE_NAME}" \
+    --container-label "traefik.http.routers.${SERVICE_NAME}-https.tls=true" \
+    --container-label "traefik.http.routers.${SERVICE_NAME}-https.tls.certresolver=letsencrypt" \
+    --container-label "traefik.http.routers.${SERVICE_NAME}-webhook.entrypoints=https" \
+    --container-label "traefik.http.routers.${SERVICE_NAME}-webhook.tls=true" \
+    --container-label "traefik.http.routers.${SERVICE_NAME}-webhook.tls.certresolver=letsencrypt" \
+    --container-label "traefik.http.routers.${SERVICE_NAME}-webhook.priority=100" \
+    --container-label "traefik.http.routers.${SERVICE_NAME}-webhook.service=${SERVICE_NAME}" \
+    --container-label "${webhook_rule_label}" \
     "${IMAGE_NAME}:${BUILD_TAG}"
 fi
