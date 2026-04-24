@@ -31,6 +31,7 @@ import {
   listProductResources,
   readProductResource,
 } from "./productSurface";
+import { toolWidgetResourceUri } from "./widgetResources";
 import { toolInputJsonSchemas, toolSchemas } from "./toolSchemas";
 import { sha256Hex } from "../utils/text";
 import {
@@ -163,6 +164,15 @@ const toolAnnotations: Record<ToolInputName, ToolAnnotations> = {
   account_getSubscriptionStatus: readOnlyTool("Get subscription status"),
   profiles_get: readOnlyTool("Get public profile"),
   system_health: readOnlyTool("Check system health"),
+};
+
+const getToolMeta = (toolName: ToolInputName): Record<string, unknown> | undefined => {
+  const resourceUri = toolWidgetResourceUri[toolName];
+  if (!resourceUri) return undefined;
+  return {
+    ui: { resourceUri },
+    "openai/outputTemplate": resourceUri,
+  };
 };
 
 const resolveAccountId = (argsRaw: unknown): string => {
@@ -611,6 +621,7 @@ export const createServer = (ctx: AppContext): Server => {
       description: toolDescriptions[name],
       inputSchema: toolInputJsonSchemas[name],
       annotations: toolAnnotations[name],
+      _meta: getToolMeta(name),
     })),
   }));
 

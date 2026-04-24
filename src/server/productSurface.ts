@@ -15,6 +15,12 @@ import {
   getSkillSelectionGuideMarkdown,
   getSkillStacksResourceMarkdown,
 } from "../domain/skillsCatalog";
+import {
+  getWidgetResourceHtml,
+  getWidgetResourceMimeType,
+  isWidgetResourceUri,
+  listWidgetResources,
+} from "./widgetResources";
 
 const BASE_URL = process.env.NINETY_NINE_BASE_URL ?? "https://www.99freelas.com.br";
 
@@ -204,6 +210,7 @@ const resourceCatalog: Resource[] = [
     description: "Compact safety summary from the 99Freelas terms of use and privacy policy.",
     mimeType: "application/json",
   },
+  ...listWidgetResources(),
 ];
 
 const resourceTemplates: ResourceTemplate[] = [
@@ -283,6 +290,10 @@ const promptResult = (name: PromptName, args: Record<string, string> | undefined
 };
 
 const resourceText = (uri: string): string => {
+  if (isWidgetResourceUri(uri)) {
+    return getWidgetResourceHtml(uri);
+  }
+
   switch (uri) {
     case "resource://99freelas/server-manifest":
       return JSON.stringify(
@@ -458,6 +469,11 @@ The server is a private/local adapter for the 99Freelas platform.`;
 };
 
 const resourceMimeType = (uri: string): string => {
+  const widgetMimeType = getWidgetResourceMimeType(uri);
+  if (widgetMimeType) {
+    return widgetMimeType;
+  }
+
   if (uri.startsWith("resource://99freelas/skills-catalog/page/")) {
     return "application/json";
   }
