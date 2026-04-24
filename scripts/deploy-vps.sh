@@ -60,28 +60,27 @@ if docker service inspect "${SERVICE_NAME}" >/dev/null 2>&1; then
 fi
 
 current_ports=""
-current_env=""
 if [[ "${service_exists}" == "true" ]]; then
   current_ports="$(docker service inspect "${SERVICE_NAME}" --format '{{json .Endpoint.Ports}}')"
-  current_env="$(docker service inspect "${SERVICE_NAME}" --format '{{json .Spec.TaskTemplate.ContainerSpec.Env}}')"
 fi
 
-publish_rm_args=()
+recreate_service=false
 if [[ "${current_ports}" == *"\"TargetPort\":3000"* ]]; then
-  publish_rm_args=(--publish-rm 3000)
+  recreate_service=true
 fi
 
-env_rm_args=()
-if [[ "${current_env}" == *"PUBLIC_PORT="* ]]; then
-  env_rm_args=(--env-rm PUBLIC_PORT)
+if [[ "${service_exists}" == "true" && "${recreate_service}" == "true" ]]; then
+  docker service rm "${SERVICE_NAME}"
+  until ! docker service inspect "${SERVICE_NAME}" >/dev/null 2>&1; do
+    sleep 1
+  done
+  service_exists=false
 fi
 
 if [[ "${service_exists}" == "true" ]]; then
   docker service update \
     --image "${IMAGE_NAME}:${BUILD_TAG}" \
     --force \
-    "${publish_rm_args[@]}" \
-    "${env_rm_args[@]}" \
     --env-add "GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}" \
     --env-add "GITHUB_WEBHOOK_PATH=${WEBHOOK_PATH}" \
     --env-add "GITHUB_WEBHOOK_BRANCH=${DEPLOY_BRANCH}" \
