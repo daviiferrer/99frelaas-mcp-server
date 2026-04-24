@@ -88,6 +88,9 @@ if [[ "${service_exists}" == "true" ]]; then
     --env-add "GITHUB_WEBHOOK_HOSTNAME=${WEBHOOK_HOSTNAME}" \
     --env-add "DEPLOY_REPO_DIR=/repo" \
     --env-add "DEPLOY_SCRIPT_PATH=/repo/scripts/deploy-vps.sh" \
+    --label-add "traefik.enable=true" \
+    --label-add "traefik.docker.network=${NETWORK_NAME}" \
+    --label-add "traefik.http.services.${SERVICE_NAME}.loadbalancer.server.port=3000" \
     --label-add "${main_http_rule_label}" \
     --label-add "${main_https_rule_label}" \
     --label-add "traefik.http.routers.${SERVICE_NAME}-webhook.entrypoints=https" \
