@@ -7,7 +7,8 @@
   "main": "dist/index.js",
   "type": "commonjs",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc -p tsconfig.json",
     "dev": "npm run build && node dist/index.js",
     "dev:http": "npm run build && node dist/http.js",
     "start": "node dist/index.js",
