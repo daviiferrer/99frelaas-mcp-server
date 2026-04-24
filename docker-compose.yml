@@ -3,7 +3,7 @@
     build:
       context: .
       dockerfile: Dockerfile
-      no_cache: true
+    image: 99freelas-mcp-server:local
     init: true
     command: ["node", "dist/http.js"]
     ports:
