@@ -81,15 +81,13 @@ test("prompts and resources are exposed", async () => {
   const resources = await client.listResources();
   assert.equal(resources.resources.length >= 7, true);
   assert.equal(resources.resources.some((resource) => resource.uri === "resource://99freelas/server-manifest"), true);
-  assert.equal(resources.resources.some((resource) => resource.uri === "ui://99freelas/projects.html"), true);
-  assert.equal(resources.resources.some((resource) => resource.uri === "ui://99freelas/inbox.html"), true);
+  assert.equal(resources.resources.some((resource) => resource.uri.startsWith("ui://")), false);
 
   const tools = await client.listTools();
   const projectsTool = tools.tools.find((tool) => tool.name === "projects_list");
-  assert.equal(projectsTool._meta.ui.resourceUri, "ui://99freelas/projects.html");
-  assert.equal(projectsTool._meta["openai/outputTemplate"], "ui://99freelas/projects.html");
+  assert.equal(projectsTool._meta, undefined);
   const proposalTool = tools.tools.find((tool) => tool.name === "proposals_send");
-  assert.equal(proposalTool._meta.ui.resourceUri, "ui://99freelas/proposal.html");
+  assert.equal(proposalTool._meta, undefined);
 
   const resourceTemplates = await client.listResourceTemplates();
   assert.equal(resourceTemplates.resourceTemplates.some((template) => template.uriTemplate === "resource://99freelas/skills-catalog/page/{offset}"), true);
@@ -119,13 +117,6 @@ test("prompts and resources are exposed", async () => {
   const quickstart = await client.readResource({ uri: "resource://99freelas/quickstart" });
   assert.equal(quickstart.contents[0].mimeType, "text/markdown");
   assert.match(quickstart.contents[0].text, /Quickstart/);
-  const projectsWidget = await client.readResource({ uri: "ui://99freelas/projects.html" });
-  assert.equal(projectsWidget.contents[0].mimeType, "text/html");
-  assert.match(projectsWidget.contents[0].text, /ui\/notifications\/tool-result/);
-  assert.match(projectsWidget.contents[0].text, /tools\/call/);
-  const proposalWidget = await client.readResource({ uri: "ui://99freelas/proposal.html" });
-  assert.equal(proposalWidget.contents[0].mimeType, "text/html");
-  assert.match(proposalWidget.contents[0].text, /Nao compartilhe contato externo/);
   const skillsPage = await client.readResource({ uri: "resource://99freelas/skills-catalog/page/0" });
   assert.equal(skillsPage.contents[0].mimeType, "application/json");
   assert.match(skillsPage.contents[0].text, /Compact page/);

@@ -31,7 +31,6 @@ import {
   listProductResources,
   readProductResource,
 } from "./productSurface";
-import { toolWidgetResourceUri } from "./widgetResources";
 import { toolInputJsonSchemas, toolSchemas } from "./toolSchemas";
 import { sha256Hex } from "../utils/text";
 import {
@@ -167,12 +166,8 @@ const toolAnnotations: Record<ToolInputName, ToolAnnotations> = {
 };
 
 const getToolMeta = (toolName: ToolInputName): Record<string, unknown> | undefined => {
-  const resourceUri = toolWidgetResourceUri[toolName];
-  if (!resourceUri) return undefined;
-  return {
-    ui: { resourceUri },
-    "openai/outputTemplate": resourceUri,
-  };
+  void toolName;
+  return undefined;
 };
 
 const resolveAccountId = (argsRaw: unknown): string => {
