@@ -14,6 +14,7 @@ test("parsers", async () => {
   const { parseProjectDetailHtml } = require("../dist/parsers/projectDetailParser.js");
   const {
     parseConnectionsFromDashboardHtml,
+    parseDashboardSummaryFromHtml,
     parseSubscriptionFromDashboardHtml,
     parseSubscriptionStatusFromSubscriptionsHtml,
   } = require("../dist/parsers/dashboardParser.js");
@@ -135,6 +136,48 @@ test("parsers", async () => {
   assert.equal(parseConnectionsFromDashboardHtml("3 conexoes restantes e 4 conexoes nao expiraveis"), 7);
   assert.equal(parseConnectionsFromDashboardHtml("Saldo: 8 conexoes"), 8);
   assert.equal(parseConnectionsFromDashboardHtml("sem saldo"), undefined);
+  const dashboard = parseDashboardSummaryFromHtml(`
+    <header>Projetos Davi Ferrer (Freelancer) ▼</header>
+    <img class="fotoUsuario min" src="https://cdn.example/profile.png" />
+    <a href="/user/davi_ferrer__">Davi Ferrer</a>
+    R$ 922,50 Seus ganhos
+    35 Propostas enviadas
+    5 Propostas aceitas
+    55 Views no perfil
+    (5 avaliações)
+    Membro Pro
+    Perfil preenchido (100%)
+    Conexões disponíveis: 183
+    93 conexões restantes de um total de 120 referentes ao seu plano (Pro). Essas conexões serão renovadas no dia 10/05/2026.
+    90 conexões não expiráveis.
+    Minhas metas Metas concluídas (80%)
+    Meus projetos Todos Aguardando pagamento Em andamento Aguardando aprovação Em disputa Cancelado Concluído Parcialmente Concluído
+    Concluído Robô para capturar andamentos nos tribunais do MT e DF Outra - Web, Mobile & Software | Mensagens (71)
+    Minhas propostas Todas Aguardando resposta Rejeitada Projeto Fechado Projeto Cancelado
+    Aguardando resposta Especialista em entregabilidade Enviada: 21/04/2026 | Oferta: R$ 350,00 | Oferta Final: R$ 411,76 | Duração estimada: 1 dia | Mensagens (1) Preview Expandir
+    @2014-
+  `);
+  assert.equal(dashboard.accountName, "Davi Ferrer");
+  assert.equal(dashboard.accountType, "Freelancer");
+  assert.equal(dashboard.profileUrl, "https://www.99freelas.com.br/user/davi_ferrer__");
+  assert.equal(dashboard.photoUrl, "https://cdn.example/profile.png");
+  assert.equal(dashboard.earningsText, "R$ 922,50");
+  assert.equal(dashboard.proposalsSent, 35);
+  assert.equal(dashboard.proposalsAccepted, 5);
+  assert.equal(dashboard.profileViews, 55);
+  assert.equal(dashboard.reviewsCount, 5);
+  assert.equal(dashboard.planName, "Pro");
+  assert.equal(dashboard.profileCompletenessPercent, 100);
+  assert.equal(dashboard.connections, 183);
+  assert.equal(dashboard.expiringConnections, 93);
+  assert.equal(dashboard.totalPlanConnections, 120);
+  assert.equal(dashboard.nonExpiringConnections, 90);
+  assert.equal(dashboard.connectionsRenewAt, "10/05/2026");
+  assert.equal(dashboard.goalsCompletedPercent, 80);
+  assert.equal(dashboard.recentProjects[0].title, "Robô para capturar andamentos nos tribunais do MT e DF");
+  assert.equal(dashboard.recentProjects[0].messagesCount, 71);
+  assert.equal(dashboard.recentProposals[0].title, "Especialista em entregabilidade");
+  assert.equal(dashboard.recentProposals[0].finalOfferText, "R$ 411,76");
   assert.deepEqual(parseSubscriptionFromDashboardHtml("assinatura Premium"), { isSubscriber: true, planName: "Premium" });
   assert.deepEqual(parseSubscriptionFromDashboardHtml("assine um de nossos planos"), { isSubscriber: false, planName: undefined });
   assert.deepEqual(parseSubscriptionFromDashboardHtml("neutro"), { isSubscriber: undefined, planName: undefined });

@@ -1,7 +1,9 @@
 import { HttpClient } from "../clients/httpClient";
 import { readResponseText } from "../clients/responseText";
 import {
+  DashboardSummary,
   parseConnectionsFromDashboardHtml,
+  parseDashboardSummaryFromHtml,
   parseSubscriptionStatusFromSubscriptionsHtml,
 } from "../parsers/dashboardParser";
 import { elapsedMs, logger } from "../security/logger";
@@ -24,6 +26,7 @@ export class AccountAdapter {
     connections?: number;
     isSubscriber?: boolean;
     planName?: string;
+    dashboard: DashboardSummary;
     subscriptionStatus?: {
       isLoggedIn?: boolean;
       isSubscriber?: boolean;
@@ -41,13 +44,15 @@ export class AccountAdapter {
     const subscriptionsResponse = await this.http.request("/subscriptions");
     const subscriptionsHtml = await readResponseText(subscriptionsResponse);
     const isLoggedIn = dashboardResponse.ok && !/\/login/i.test(dashboardResponse.url);
+    const dashboard = parseDashboardSummaryFromHtml(dashboardHtml);
     const subscriptionStatus = parseSubscriptionStatusFromSubscriptionsHtml(subscriptionsHtml);
     const result = {
       isLoggedIn,
-      connections: parseConnectionsFromDashboardHtml(dashboardHtml),
+      connections: dashboard.connections ?? parseConnectionsFromDashboardHtml(dashboardHtml),
+      dashboard,
       subscriptionStatus,
       isSubscriber: subscriptionStatus.isSubscriber,
-      planName: subscriptionStatus.planName,
+      planName: subscriptionStatus.planName ?? dashboard.planName,
     };
     logger.info("account.get_dashboard_summary.ok", {
       isLoggedIn: result.isLoggedIn,

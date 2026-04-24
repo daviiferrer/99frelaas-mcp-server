@@ -100,6 +100,8 @@ const sharedWidgetHtml = (definition: WidgetDefinition): string => `<!doctype ht
       --color-soft: #f7f8fa;
       --color-green: #48a65b;
       --color-blue: #00adef;
+      --color-navy: #313640;
+      --color-page: #f1f2f7;
       --color-red: #db524d;
       --radius: 6px;
       --gap: 10px;
@@ -220,6 +222,69 @@ const sharedWidgetHtml = (definition: WidgetDefinition): string => `<!doctype ht
     .metric-label {
       color: var(--color-muted);
       font-size: 11px;
+    }
+    .account-hero {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, var(--color-navy), #252932);
+      color: #ffffff;
+    }
+    .avatar {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.85);
+      background: var(--color-page);
+      object-fit: cover;
+    }
+    .hero-name {
+      margin: 0;
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .hero-meta {
+      margin-top: 3px;
+      color: rgba(255, 255, 255, 0.78);
+      font-size: 12px;
+    }
+    .hero-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .hero-chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(0, 173, 239, 0.18);
+      color: #ffffff;
+      font-size: 11px;
+    }
+    .hero-chip.green {
+      background: rgba(72, 166, 91, 0.22);
+    }
+    .compact-list {
+      display: grid;
+      gap: 8px;
+    }
+    .compact-item {
+      padding: 10px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: var(--color-surface);
+    }
+    .section-title {
+      margin: 4px 0 0;
+      font-size: 13px;
+      font-weight: 700;
     }
     .actions {
       display: flex;
@@ -407,14 +472,44 @@ const sharedWidgetHtml = (definition: WidgetDefinition): string => `<!doctype ht
     function renderAccount() {
       const data = readPayload();
       const session = data.session || {};
+      const dashboard = data.dashboard || {};
       const counts = data.counts || {};
+      const hasLocalSession = Boolean(session.sessionId || session.isAuthenticated || (Array.isArray(session.cookiesPresent) && session.cookiesPresent.length > 0));
+      const isAuthenticated = Boolean(session.isAuthenticated);
+      const hasCookiesLoaded = Boolean(data.cookiesLoaded ?? (Array.isArray(session.cookiesPresent) && session.cookiesPresent.length > 0));
+      const accountName = dashboard.accountName || session.username || "Conta 99Freelas";
+      const accountType = dashboard.accountType || (data.isLoggedIn ? "Freelancer" : undefined);
+      const photo = dashboard.photoUrl ? '<img class="avatar" src="' + escapeHtml(dashboard.photoUrl) + '" alt="' + escapeHtml(accountName) + '" />' : '<div class="avatar" role="img" aria-label="' + escapeHtml(accountName) + '"></div>';
+      const heroChips = [
+        dashboard.planName ? '<span class="hero-chip green">' + escapeHtml(dashboard.planName) + '</span>' : "",
+        dashboard.ratingText ? '<span class="hero-chip">' + escapeHtml(dashboard.ratingText) + ' estrelas</span>' : "",
+        Number.isFinite(Number(dashboard.profileCompletenessPercent)) ? '<span class="hero-chip">' + escapeHtml(dashboard.profileCompletenessPercent) + '% perfil</span>' : "",
+      ].join("");
+      const projectRows = (dashboard.recentProjects || []).slice(0, 3).map((item) =>
+        '<div class="compact-item"><div class="row"><strong>' + escapeHtml(item.title) + '</strong><span class="chip green">' + escapeHtml(item.status || "Projeto") + '</span></div><div class="meta">' + escapeHtml(item.meta || "") + '</div></div>'
+      ).join("");
+      const proposalRows = (dashboard.recentProposals || []).slice(0, 3).map((item) =>
+        '<div class="compact-item"><div class="row"><strong>' + escapeHtml(item.title) + '</strong><span class="chip blue">' + escapeHtml(item.status || "Proposta") + '</span></div><div class="meta">' + escapeHtml([item.offerText, item.finalOfferText, item.estimatedDuration].filter(Boolean).join(" - ")) + '</div></div>'
+      ).join("");
       render('<header class="header"><div><h1 class="title">Conta 99Freelas</h1><div class="subtitle">Status compacto antes de operar propostas e inbox.</div></div></header>' +
+        '<section class="account-hero">' + photo + '<div><h2 class="hero-name">' + escapeHtml(accountName) + '</h2><div class="hero-meta">' + escapeHtml([accountType, dashboard.profileUrl].filter(Boolean).join(" - ")) + '</div><div class="hero-chips">' + heroChips + '</div></div></section>' +
         '<div class="metrics">' +
-        metric("Conexoes", data.connections ?? data.availableConnections ?? data.connectionsAvailable) +
-        metric("Assinante", data.isSubscriber === true ? "Sim" : data.isSubscriber === false ? "Nao" : undefined) +
-        metric("Sessao", session.isAuthenticated === false || data.cookiesLoaded === false ? "Inativa" : "Ativa") +
+        metric("Ganhos", dashboard.earningsText) +
+        metric("Conexoes", data.connections ?? dashboard.connections ?? data.availableConnections ?? data.connectionsAvailable) +
+        metric("Renova em", dashboard.connectionsRenewAt) +
+        metric("Nao expiram", dashboard.nonExpiringConnections) +
+        metric("Propostas enviadas", dashboard.proposalsSent) +
+        metric("Propostas aceitas", dashboard.proposalsAccepted) +
+        metric("Views no perfil", dashboard.profileViews) +
+        metric("Metas", dashboard.goalsCompletedPercent === undefined ? undefined : dashboard.goalsCompletedPercent + "%") +
+        metric("Sessao local", hasLocalSession ? "Ativa" : "Inativa") +
+        metric("Autenticado", isAuthenticated ? "Sim" : "Nao") +
+        metric("Cookies", hasCookiesLoaded ? "Carregados" : "Nao carregados") +
         metric("Inbox", counts.inbox ?? counts.naoLidas ?? counts.unread) +
         '</div>' +
+        (projectRows ? '<h3 class="section-title">Projetos recentes</h3><section class="compact-list">' + projectRows + '</section>' : "") +
+        (proposalRows ? '<h3 class="section-title">Propostas recentes</h3><section class="compact-list">' + proposalRows + '</section>' : "") +
+        (!isAuthenticated && hasLocalSession ? '<div class="notice">Ha uma sessao salva localmente, mas o site nao confirmou autenticacao. Reimporte cookies frescos.</div>' : "") +
         (data.ok === false ? '<div class="notice">' + escapeHtml(data.error || "Conta indisponivel.") + '</div>' : ""));
     }
 
