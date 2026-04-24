@@ -372,6 +372,75 @@ test("system.health handles connectivity errors", async () => {
   await server.close();
 });
 
+test("authenticated tools keep cookies when session probe is inconclusive", async () => {
+  const { createServer } = require("../dist/server/createServer.js");
+  let clearCount = 0;
+  let listCalled = false;
+  const ctx = {
+    sessionManager: {
+      async requireCookies() {
+        return [{ name: "JSESSIONID", value: "x", domain: "www.99freelas.com.br" }];
+      },
+      async createOrUpdateSession() {
+        return { sessionId: "s" };
+      },
+      async checkSession() {
+        return { isAuthenticated: true, cookiesPresent: ["JSESSIONID"], sessionId: "s" };
+      },
+      async clearSession() {
+        clearCount += 1;
+      },
+    },
+    httpClient: {
+      createChildWithCookies() {
+        return {
+          async request() {
+            return responseText("forbidden", "https://www.99freelas.com.br/profile/edit", false);
+          },
+        };
+      },
+      async request() {
+        return responseText("");
+      },
+    },
+    projectsAdapter: {
+      listCategories() { return []; },
+      async list() {
+        listCalled = true;
+        return { items: [], page: 1, hasMore: false };
+      },
+      async listByAvailability() { return { openItems: [], exclusiveItems: [], pagesScanned: 0, rateLimitNote: "" }; },
+      async get() { return {}; },
+      async getBidContext() { return {}; },
+    },
+    proposalsAdapter: { async send() { return { ok: true, projectId: 1 }; } },
+    inboxAdapter: { async listConversations() { return []; }, async getMessages() { return []; }, async sendMessage() { return { ok: true }; }, async getDirectoryCounts() { return {}; } },
+    accountAdapter: {
+      async getConnections() { return {}; },
+      async getDashboardSummary() { return { isLoggedIn: false, isSubscriber: false }; },
+      async getSubscriptionStatus() { return { isLoggedIn: false, isSubscriber: false, source: "subscriptions-page" }; },
+    },
+    profileAdapter: { async getEditState() { return { interestAreaIds: [], skillIds: [], photoPresent: true }; }, async update() { return { ok: true }; }, async getPublicProfile() { return { profileUrl: "https://www.99freelas.com.br/user/x" }; } },
+    rateLimiter: { consume() {} },
+    cacheStore: { async hasProposal() { return false; }, async markProposal() {}, async hasMessageHash() { return false; }, async markMessageHash() {} },
+    auditLog: { async append() {} },
+    proposalsDailyLimit: 1,
+    proposalDayCounter: new Map(),
+  };
+
+  const server = createServer(ctx);
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  const client = new Client({ name: "test-client-probe", version: "0.1.0" }, { capabilities: {} });
+  await client.connect(clientTransport);
+  const result = parseToolText(await client.callTool({ name: "projects_list", arguments: { categorySlug: "web-mobile-e-software", page: 1 } }));
+  assert.deepEqual(result.items, []);
+  assert.equal(listCalled, true);
+  assert.equal(clearCount, 0);
+  await client.close();
+  await server.close();
+});
+
 test("authenticated tools auto-import manual cookies fallback", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mcp99-fallback-"));
   const cookiesFile = join(dir, "manual-cookies.json");

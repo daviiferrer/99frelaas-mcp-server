@@ -195,6 +195,8 @@ const resolveAgentId = (argsRaw: unknown): string => {
 
 const isManualFallbackEnabled = (): boolean => (process.env.ALLOW_MANUAL_COOKIE_FALLBACK ?? "false").toLowerCase() === "true";
 
+type SessionCookieValidation = "authenticated" | "logged_out" | "inconclusive";
+
 const getAuthCookies = async (ctx: AppContext, accountId: string) => {
   try {
     const cookies = await ctx.sessionManager.requireCookies(accountId);
@@ -224,28 +226,42 @@ const getAuthCookies = async (ctx: AppContext, accountId: string) => {
   }
 };
 
-const verifySessionCookies = async (ctx: AppContext, accountId: string, cookies: Cookie[]): Promise<boolean> => {
-  const scopedHttp = ctx.httpClient instanceof HttpClient ? ctx.httpClient.createChildWithCookies(cookies) : ctx.httpClient;
-  const response = await scopedHttp.request("/profile/edit");
+const validateSessionProbe = async (scopedHttp: HttpClient, path: string): Promise<SessionCookieValidation> => {
+  const response = await scopedHttp.request(path);
   let html = "";
   try {
     html = await readResponseText(response);
   } catch {
     if (response.ok) {
-      return true;
+      return "authenticated";
     }
-    await ctx.sessionManager.clearSession(accountId);
-    await ctx.auditLog.append("session.invalidated", { accountId });
-    return false;
+    return response.status === 401 ? "logged_out" : "inconclusive";
   }
   const username = extractAuthenticatedUsernameFromHtml(html);
   const looksLoggedOut = /\/login\b|\/entrar\b|faça login|faca login|entrar na sua conta|login/i.test(html) || /\/login\b|\/entrar\b/i.test(response.url);
   if (username || (!looksLoggedOut && response.ok)) {
+    return "authenticated";
+  }
+  return looksLoggedOut ? "logged_out" : "inconclusive";
+};
+
+const verifySessionCookies = async (ctx: AppContext, accountId: string, cookies: Cookie[]): Promise<boolean> => {
+  const scopedHttp = ctx.httpClient instanceof HttpClient ? ctx.httpClient.createChildWithCookies(cookies) : ctx.httpClient;
+  const probeResults = [
+    await validateSessionProbe(scopedHttp, "/dashboard"),
+    await validateSessionProbe(scopedHttp, "/profile/edit"),
+  ];
+  if (probeResults.includes("authenticated")) {
     return true;
   }
-  await ctx.sessionManager.clearSession(accountId);
-  await ctx.auditLog.append("session.invalidated", { accountId });
-  return false;
+  if (!probeResults.includes("inconclusive")) {
+    await ctx.sessionManager.clearSession(accountId);
+    await ctx.auditLog.append("session.invalidated", { accountId, reason: "logged_out_probe" });
+    return false;
+  }
+  logger.warn("session.verify.inconclusive", { accountId });
+  await ctx.auditLog.append("session.verify.inconclusive", { accountId });
+  return true;
 };
 
 const identifyAuthenticatedUsername = async (httpClient: HttpClient): Promise<string | undefined> => {
