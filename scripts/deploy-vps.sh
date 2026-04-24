@@ -91,6 +91,8 @@ if [[ "${service_exists}" == "true" ]]; then
     --label-add "${main_http_rule_label}" \
     --label-add "${main_https_rule_label}" \
     --label-add "traefik.http.routers.${SERVICE_NAME}-webhook.entrypoints=https" \
+    --label-add "traefik.http.routers.${SERVICE_NAME}-http.service=${SERVICE_NAME}" \
+    --label-add "traefik.http.routers.${SERVICE_NAME}-https.service=${SERVICE_NAME}" \
     --label-add "traefik.http.routers.${SERVICE_NAME}-webhook.tls=true" \
     --label-add "traefik.http.routers.${SERVICE_NAME}-webhook.tls.certresolver=letsencrypt" \
     --label-add "traefik.http.routers.${SERVICE_NAME}-webhook.priority=100" \
@@ -133,9 +135,11 @@ else
     --label "traefik.http.services.${SERVICE_NAME}.loadbalancer.server.port=3000" \
     --label "${main_http_rule_label}" \
     --label "traefik.http.routers.${SERVICE_NAME}-http.entrypoints=http" \
+    --label "traefik.http.routers.${SERVICE_NAME}-http.service=${SERVICE_NAME}" \
     --label "traefik.http.routers.${SERVICE_NAME}-http.middlewares=redirect-to-https@file" \
     --label "${main_https_rule_label}" \
     --label "traefik.http.routers.${SERVICE_NAME}-https.entrypoints=https" \
+    --label "traefik.http.routers.${SERVICE_NAME}-https.service=${SERVICE_NAME}" \
     --label "traefik.http.routers.${SERVICE_NAME}-https.tls=true" \
     --label "traefik.http.routers.${SERVICE_NAME}-https.tls.certresolver=letsencrypt" \
     --label "traefik.http.routers.${SERVICE_NAME}-webhook.entrypoints=https" \
