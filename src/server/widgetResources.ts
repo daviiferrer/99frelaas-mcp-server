@@ -325,6 +325,83 @@ const sharedWidgetHtml = (definition: WidgetDefinition): string => `<!doctype ht
       color: var(--color-text);
       font-size: 12px;
     }
+    .thread {
+      display: grid;
+      gap: 10px;
+    }
+    .thread-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 2px;
+    }
+    .thread-title {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .bubble-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+    }
+    .bubble-row.user {
+      justify-content: flex-end;
+    }
+    .bubble-row.system {
+      justify-content: center;
+    }
+    .bubble {
+      max-width: min(84%, 560px);
+      padding: 10px 12px;
+      border: 1px solid var(--color-border);
+      border-radius: 14px;
+      background: var(--color-surface);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+    }
+    .bubble.user {
+      border-color: rgba(0, 173, 239, 0.24);
+      background: rgba(0, 173, 239, 0.08);
+    }
+    .bubble.client {
+      background: var(--color-soft);
+    }
+    .bubble.system {
+      border-color: rgba(176, 140, 47, 0.24);
+      background: rgba(176, 140, 47, 0.08);
+    }
+    .bubble-avatar {
+      flex: none;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      background: var(--color-blue);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .bubble-row.user .bubble-avatar {
+      order: 2;
+      background: var(--color-green);
+    }
+    .bubble-row.system .bubble-avatar {
+      background: #b08c2f;
+    }
+    .bubble-text {
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--color-text);
+      font-size: 12px;
+    }
+    .bubble-meta {
+      margin-top: 4px;
+      color: var(--color-muted);
+      font-size: 11px;
+    }
     @media (max-width: 520px) {
       .frame { padding: 12px; }
       .row { align-items: flex-start; flex-direction: column; }
@@ -459,7 +536,37 @@ const sharedWidgetHtml = (definition: WidgetDefinition): string => `<!doctype ht
       const conversations = Array.isArray(data.items) ? data.items : [];
       const messages = Array.isArray(data.messages) ? data.messages : [];
       const notifications = Array.isArray(data.items) && data.items.some((item) => item.message) ? data.items : [];
-      const rows = (messages.length ? messages : conversations.length ? conversations : notifications).slice(0, 8).map((item) => {
+      if (messages.length) {
+        const threadTitle =
+          data.conversation?.title ||
+          data.conversation?.nomeProjeto ||
+          data.conversation?.assunto ||
+          conversations[0]?.title ||
+          "Conversa";
+        const thread = messages.slice(0, 8).map((item) => {
+          const side = item.authorType === "user" ? "user" : item.authorType === "system" ? "system" : "client";
+          const label = side === "user" ? "Você" : side === "system" ? "Sistema" : "Cliente";
+          const avatar = label.slice(0, 1).toUpperCase();
+          const body = item.text || "";
+          const bubble = '<div class="bubble ' + side + '">' +
+            '<div class="thread-title">' + escapeHtml(label) + '</div>' +
+            '<div class="bubble-text">' + escapeHtml(body) + '</div>' +
+            (item.sentAt ? '<div class="bubble-meta">' + escapeHtml(item.sentAt) + '</div>' : '') +
+            '</div>';
+          return side === "user"
+            ? '<article class="bubble-row user">' + bubble + '<div class="bubble-avatar" aria-hidden="true">' + escapeHtml(avatar) + '</div></article>'
+            : '<article class="bubble-row ' + side + '"><div class="bubble-avatar" aria-hidden="true">' + escapeHtml(avatar) + '</div>' + bubble + '</article>';
+        }).join("");
+        render(
+          '<header class="header"><div><h1 class="title">Inbox 99Freelas</h1><div class="subtitle">Mensagens e notificacoes relevantes para resposta rapida.</div></div></header>' +
+          '<div class="thread-header"><h2 class="thread-title">' + escapeHtml(threadTitle) + '</h2>' +
+          (messages.length ? '<span class="chip green">' + escapeHtml(messages.length) + ' mensagem(ns)</span>' : '') +
+          '</div>' +
+          '<section class="thread">' + thread + '</section>',
+        );
+        return;
+      }
+      const rows = (conversations.length ? conversations : notifications).slice(0, 8).map((item) => {
         const title = item.title || item.authorType || item.conversationId || item.createdAt || "Item";
         const body = item.text || item.lastMessagePreview || item.message || "";
         return '<article class="item"><div class="row"><h2 class="item-title">' + escapeHtml(title) + '</h2>' +
