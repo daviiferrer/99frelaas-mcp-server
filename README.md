@@ -124,29 +124,26 @@ The included Blueprint already defines a `/app/.data` disk and sets these paths.
 
 ## VPS Deploy
 
-The repository also includes a GitHub Actions workflow for automatic deployment to a VPS using a self-hosted runner.
-
-Why this approach:
-
-- `push` to `master` can trigger deploys without GitHub-hosted runner minutes.
-- Self-hosted runners are free to use for GitHub Actions.
-- Secrets can stay on the VPS in a local env file instead of living in GitHub.
-
-Workflow file:
-
-- `.github/workflows/deploy-vps.yml`
-
-Deploy script:
-
-- `scripts/deploy-vps.sh`
+The production path is webhook-driven. GitHub sends a push event to the VPS, the server verifies the signature, and the same deploy script updates the Swarm service in place.
 
 Expected VPS layout:
 
 ```text
 /srv/99freelas-mcp-server/
+  .git/
   deploy.env
   data/
+  scripts/
+  src/
 ```
+
+One-time setup:
+
+1. Clone this repository into `/srv/99freelas-mcp-server`.
+2. Copy [`deploy.env.example`](./deploy.env.example) to `/srv/99freelas-mcp-server/deploy.env` and fill the values.
+3. Create a GitHub webhook for `push` events targeting `https://<your-mcp-host>/webhooks/github`.
+4. Set the webhook secret in `GITHUB_WEBHOOK_SECRET`.
+5. Start the service with `docker service create` or the existing Swarm deploy flow.
 
 Example `deploy.env` contents:
 
@@ -155,24 +152,13 @@ MCP_HOSTNAME=mcp.example.com
 SESSION_ENCRYPTION_KEY_BASE64=...
 NINETY_NINE_BASE_URL=https://www.99freelas.com.br
 ALLOW_MANUAL_COOKIE_FALLBACK=false
+GITHUB_WEBHOOK_SECRET=...
+GITHUB_WEBHOOK_BRANCH=master
+GITHUB_WEBHOOK_REPOSITORY=daviiferrer/99frelaas-mcp-server
+GITHUB_WEBHOOK_PATH=/webhooks/github
 ```
 
-One-time runner setup:
-
-1. Install a GitHub self-hosted runner on the VPS.
-2. Register it with the repository using the label `99freelas-vps`.
-3. Make sure the VPS has Docker and access to the `easypanel` network.
-4. Create `/srv/99freelas-mcp-server/deploy.env`.
-5. Ensure Traefik is already running on the VPS with `letsencrypt` and the `redirect-to-https@file` middleware.
-
-What the workflow does:
-
-- Checks out the repo on the runner.
-- Builds the Docker image from the current `master`.
-- Recreates the Swarm service on the VPS with persistent data mounted from `/srv/99freelas-mcp-server/data`.
-- Publishes the app through Traefik using the hostname defined in `MCP_HOSTNAME`.
-
-The service is created as a Swarm service named `99freelas-mcp-server`. The deploy script removes the existing service first so labels and environment changes are always applied on the next push.
+The deploy script is [`scripts/deploy-vps.sh`](./scripts/deploy-vps.sh). It fetches `master`, rebuilds the image, and updates the running Swarm service without relying on GitHub Actions.
 
 ## Docker
 

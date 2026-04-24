@@ -19,6 +19,9 @@ FROM node:24-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends git docker.io ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
 RUN npm ci --ignore-scripts --omit=dev
 COPY --from=build /app/dist ./dist
@@ -26,8 +29,6 @@ COPY --from=build /app/README.md ./README.md
 COPY data ./data
 RUN mkdir -p /app/.data \
   && chown -R node:node /app
-
-USER node
 
 # MCP Streamable HTTP server entrypoint for container hosts such as Render.
 CMD ["node", "dist/http.js"]

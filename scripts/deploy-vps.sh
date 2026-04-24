@@ -5,12 +5,6 @@ DEPLOY_DIR="${DEPLOY_DIR:-/srv/99freelas-mcp-server}"
 SERVICE_NAME="${SERVICE_NAME:-99freelas-mcp-server}"
 IMAGE_NAME="${IMAGE_NAME:-99freelas-mcp-server}"
 NETWORK_NAME="${NETWORK_NAME:-easypanel}"
-STACK_HOSTNAME="${MCP_HOSTNAME:-}"
-
-if [[ -z "${STACK_HOSTNAME}" ]]; then
-  echo "MCP_HOSTNAME is required. Set it in /srv/99freelas-mcp-server/deploy.env or export it before running." >&2
-  exit 1
-fi
 
 if [[ ! -f "${DEPLOY_DIR}/deploy.env" ]]; then
   echo "Missing deploy env file: ${DEPLOY_DIR}/deploy.env" >&2
@@ -22,52 +16,102 @@ set -a
 . "${DEPLOY_DIR}/deploy.env"
 set +a
 
+STACK_HOSTNAME="${MCP_HOSTNAME:-}"
+WEBHOOK_PATH="${GITHUB_WEBHOOK_PATH:-/webhooks/github}"
+DEPLOY_BRANCH="${GITHUB_WEBHOOK_BRANCH:-master}"
+
+if [[ -z "${STACK_HOSTNAME}" ]]; then
+  echo "MCP_HOSTNAME is required. Set it in /srv/99freelas-mcp-server/deploy.env or export it before running." >&2
+  exit 1
+fi
+
+if [[ -z "${GITHUB_WEBHOOK_SECRET:-}" ]]; then
+  echo "GITHUB_WEBHOOK_SECRET is required. Set it in /srv/99freelas-mcp-server/deploy.env." >&2
+  exit 1
+fi
+
+cd "${DEPLOY_DIR}"
+
+if [[ ! -d .git ]]; then
+  echo "Missing git repository in ${DEPLOY_DIR}. Clone the repo there first." >&2
+  exit 1
+fi
+
 mkdir -p "${DEPLOY_DIR}/data"
 
+git fetch origin "${DEPLOY_BRANCH}"
+git reset --hard "origin/${DEPLOY_BRANCH}"
+
+BUILD_TAG="${GITHUB_SHA:-local}"
+
 docker build \
-  -t "${IMAGE_NAME}:${GITHUB_SHA:-local}" \
+  -t "${IMAGE_NAME}:${BUILD_TAG}" \
   -t "${IMAGE_NAME}:latest" \
   .
 
+main_http_rule_label="traefik.http.routers.${SERVICE_NAME}-http.rule=Host(\`${STACK_HOSTNAME}\`)"
+main_https_rule_label="traefik.http.routers.${SERVICE_NAME}-https.rule=Host(\`${STACK_HOSTNAME}\`)"
+webhook_http_rule_label="traefik.http.routers.${SERVICE_NAME}-webhook.rule=Host(\`${STACK_HOSTNAME}\`) && PathPrefix(\`${WEBHOOK_PATH}\`)"
+
 if docker service inspect "${SERVICE_NAME}" >/dev/null 2>&1; then
-  docker service rm "${SERVICE_NAME}"
-  while docker service inspect "${SERVICE_NAME}" >/dev/null 2>&1; do
-    sleep 2
-  done
+  docker service update \
+    --image "${IMAGE_NAME}:${BUILD_TAG}" \
+    --force \
+    --env-add "GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}" \
+    --env-add "GITHUB_WEBHOOK_PATH=${WEBHOOK_PATH}" \
+    --env-add "GITHUB_WEBHOOK_BRANCH=${DEPLOY_BRANCH}" \
+    --env-add "GITHUB_WEBHOOK_REPOSITORY=${GITHUB_WEBHOOK_REPOSITORY:-daviiferrer/99frelaas-mcp-server}" \
+    --env-add "DEPLOY_REPO_DIR=/repo" \
+    --env-add "DEPLOY_SCRIPT_PATH=/repo/scripts/deploy-vps.sh" \
+    --label-add "${main_http_rule_label}" \
+    --label-add "${main_https_rule_label}" \
+    --label-add "${webhook_http_rule_label}" \
+    "${SERVICE_NAME}"
+else
+  docker service create \
+    --name "${SERVICE_NAME}" \
+    --replicas 1 \
+    --constraint node.role==manager \
+    --network "${NETWORK_NAME}" \
+    --mount type=bind,src="${DEPLOY_DIR}/data",dst=/app/.data \
+    --mount type=bind,src="${DEPLOY_DIR}",dst=/repo \
+    --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+    --env HOST=0.0.0.0 \
+    --env PORT=3000 \
+    --env MCP_HTTP_PATH=/mcp \
+    --env STATE_DB_FILE=/app/.data/state.sqlite \
+    --env STATE_DB_JOURNAL_MODE=DELETE \
+    --env SESSION_FILE=/app/.data/sessions.json \
+    --env CACHE_FILE=/app/.data/cache.json \
+    --env AUDIT_LOG_FILE=/app/.data/audit.log \
+    --env MANUAL_COOKIES_FILE=/app/.data/manual-cookies.json \
+    --env LOG_LEVEL=info \
+    --env LOG_FILE=/app/.data/server.log \
+    --env LOG_STDERR=false \
+    --env SESSION_ENCRYPTION_KEY_BASE64="${SESSION_ENCRYPTION_KEY_BASE64}" \
+    --env NINETY_NINE_BASE_URL="${NINETY_NINE_BASE_URL:-https://www.99freelas.com.br}" \
+    --env ALLOW_MANUAL_COOKIE_FALLBACK="${ALLOW_MANUAL_COOKIE_FALLBACK:-false}" \
+    --env GITHUB_WEBHOOK_SECRET="${GITHUB_WEBHOOK_SECRET:-}" \
+    --env GITHUB_WEBHOOK_PATH="${WEBHOOK_PATH}" \
+    --env GITHUB_WEBHOOK_BRANCH="${DEPLOY_BRANCH}" \
+    --env GITHUB_WEBHOOK_REPOSITORY="${GITHUB_WEBHOOK_REPOSITORY:-daviiferrer/99frelaas-mcp-server}" \
+    --env DEPLOY_REPO_DIR=/repo \
+    --env DEPLOY_SCRIPT_PATH=/repo/scripts/deploy-vps.sh \
+    --label traefik.enable=true \
+    --label "traefik.docker.network=${NETWORK_NAME}" \
+    --label "traefik.http.services.${SERVICE_NAME}.loadbalancer.server.port=3000" \
+    --label "${main_http_rule_label}" \
+    --label "traefik.http.routers.${SERVICE_NAME}-http.entrypoints=http" \
+    --label "traefik.http.routers.${SERVICE_NAME}-http.middlewares=redirect-to-https@file" \
+    --label "${main_https_rule_label}" \
+    --label "traefik.http.routers.${SERVICE_NAME}-https.entrypoints=https" \
+    --label "traefik.http.routers.${SERVICE_NAME}-https.tls=true" \
+    --label "traefik.http.routers.${SERVICE_NAME}-https.tls.certresolver=letsencrypt" \
+    --label "traefik.http.routers.${SERVICE_NAME}-webhook.entrypoints=https" \
+    --label "traefik.http.routers.${SERVICE_NAME}-webhook.tls=true" \
+    --label "traefik.http.routers.${SERVICE_NAME}-webhook.tls.certresolver=letsencrypt" \
+    --label "traefik.http.routers.${SERVICE_NAME}-webhook.priority=100" \
+    --label "traefik.http.services.${SERVICE_NAME}-webhook.loadbalancer.server.port=3000" \
+    --label "${webhook_http_rule_label}" \
+    "${IMAGE_NAME}:${BUILD_TAG}"
 fi
-
-http_rule_label="traefik.http.routers.${SERVICE_NAME}-http.rule=Host(\`${STACK_HOSTNAME}\`)"
-https_rule_label="traefik.http.routers.${SERVICE_NAME}-https.rule=Host(\`${STACK_HOSTNAME}\`)"
-
-docker service create \
-  --name "${SERVICE_NAME}" \
-  --replicas 1 \
-  --constraint node.role==manager \
-  --network "${NETWORK_NAME}" \
-  --mount type=bind,src="${DEPLOY_DIR}/data",dst=/app/.data \
-  --env HOST=0.0.0.0 \
-  --env PORT=3000 \
-  --env MCP_HTTP_PATH=/mcp \
-  --env STATE_DB_FILE=/app/.data/state.sqlite \
-  --env STATE_DB_JOURNAL_MODE=DELETE \
-  --env SESSION_FILE=/app/.data/sessions.json \
-  --env CACHE_FILE=/app/.data/cache.json \
-  --env AUDIT_LOG_FILE=/app/.data/audit.log \
-  --env MANUAL_COOKIES_FILE=/app/.data/manual-cookies.json \
-  --env LOG_LEVEL=info \
-  --env LOG_FILE=/app/.data/server.log \
-  --env LOG_STDERR=false \
-  --env SESSION_ENCRYPTION_KEY_BASE64="${SESSION_ENCRYPTION_KEY_BASE64}" \
-  --env NINETY_NINE_BASE_URL="${NINETY_NINE_BASE_URL:-https://www.99freelas.com.br}" \
-  --env ALLOW_MANUAL_COOKIE_FALLBACK="${ALLOW_MANUAL_COOKIE_FALLBACK:-false}" \
-  --label traefik.enable=true \
-  --label "traefik.docker.network=${NETWORK_NAME}" \
-  --label "traefik.http.services.${SERVICE_NAME}.loadbalancer.server.port=3000" \
-  --label "${http_rule_label}" \
-  --label "traefik.http.routers.${SERVICE_NAME}-http.entrypoints=http" \
-  --label "traefik.http.routers.${SERVICE_NAME}-http.middlewares=redirect-to-https@file" \
-  --label "${https_rule_label}" \
-  --label "traefik.http.routers.${SERVICE_NAME}-https.entrypoints=https" \
-  --label "traefik.http.routers.${SERVICE_NAME}-https.tls=true" \
-  --label "traefik.http.routers.${SERVICE_NAME}-https.tls.certresolver=letsencrypt" \
-  "${IMAGE_NAME}:${GITHUB_SHA:-local}"

@@ -4,11 +4,13 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { logger } from "../security/logger";
+import { handleGithubWebhookRequest, type GithubWebhookConfig } from "../deploy/githubWebhook";
 
 export type HttpServerOptions = {
   host: string;
   port: number;
   mcpPath?: string;
+  githubWebhook?: GithubWebhookConfig;
 };
 
 export type RunningHttpServer = {
@@ -98,6 +100,11 @@ export const startHttpServer = async (
 
       if (req.method === "GET" && path === "/healthz") {
         sendJson(res, 200, { ok: true, transport: "http" });
+        return;
+      }
+
+      if (options.githubWebhook && path === options.githubWebhook.path) {
+        await handleGithubWebhookRequest(req, res, options.githubWebhook);
         return;
       }
 
