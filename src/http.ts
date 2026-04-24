@@ -13,6 +13,13 @@ export const runHttp = async (): Promise<void> => {
     throw new Error("PORT must be a positive integer");
   }
 
+  logger.info("server.webhook", {
+    enabled: Boolean(githubWebhook),
+    path: githubWebhook?.path ?? null,
+    branch: githubWebhook?.branch ?? null,
+    repositoryFullName: githubWebhook?.repositoryFullName ?? null,
+  });
+
   const appContext = buildAppContext();
   const running = await startHttpServer(() => buildServer(appContext), {
     host,
