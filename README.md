@@ -141,7 +141,7 @@ One-time setup:
 
 1. Clone this repository into `/srv/99freelas-mcp-server`.
 2. Copy [`deploy.env.example`](./deploy.env.example) to `/srv/99freelas-mcp-server/deploy.env` and fill the values.
-3. Create a GitHub webhook for `push` events targeting `https://<your-mcp-host>/webhooks/github`.
+3. Create a GitHub webhook for `push` events targeting `http://<your-vps-ip>:3001/webhooks/github`.
 4. Set the webhook secret in `GITHUB_WEBHOOK_SECRET`.
 5. Start the service with `docker service create` or the existing Swarm deploy flow.
 
@@ -155,11 +155,11 @@ ALLOW_MANUAL_COOKIE_FALLBACK=false
 GITHUB_WEBHOOK_SECRET=...
 GITHUB_WEBHOOK_BRANCH=master
 GITHUB_WEBHOOK_REPOSITORY=daviiferrer/99frelaas-mcp-server
-GITHUB_WEBHOOK_HOSTNAME=webhook.example.com
 GITHUB_WEBHOOK_PATH=/webhooks/github
+PUBLIC_PORT=3001
 ```
 
-The deploy script is [`scripts/deploy-vps.sh`](./scripts/deploy-vps.sh). It fetches `master`, rebuilds the image, and updates the running Swarm service without relying on GitHub Actions.
+The deploy script is [`scripts/deploy-vps.sh`](./scripts/deploy-vps.sh). It fetches `master`, rebuilds the image, publishes the container on `PUBLIC_PORT`, and updates the running Swarm service without relying on GitHub Actions.
 
 ## Docker
 
