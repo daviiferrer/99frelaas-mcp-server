@@ -66,7 +66,7 @@ if docker service inspect "${SERVICE_NAME}" >/dev/null 2>&1; then
     --env-add "DEPLOY_SCRIPT_PATH=/repo/scripts/deploy-vps.sh" \
     --label-add "${main_http_rule_label}" \
     --label-add "${main_https_rule_label}" \
-    --label-add "${webhook_http_rule_label}" \
+    --label-add "traefik.http.routers.${SERVICE_NAME}-webhook.rule=Host(\`${WEBHOOK_HOSTNAME}\`)" \
     "${SERVICE_NAME}"
 else
   docker service create \
