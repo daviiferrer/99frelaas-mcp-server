@@ -41,6 +41,7 @@ import {
 import { extractAuthenticatedUsernameFromHtml } from "../parsers/authIdentityParser";
 import { readResponseText } from "../clients/responseText";
 import { localDateKey } from "../utils/time";
+import { getDashboardWidgetMeta } from "./dashboardWidget";
 
 type ToolInputName = keyof typeof toolSchemas;
 
@@ -70,7 +71,7 @@ export type AppContext = {
 /* c8 ignore start */
 const toolDescriptions: Record<ToolInputName, string> = {
   auth_importCookies:
-    "Import authenticated 99Freelas cookies from pasted JSON, inline array, or file. Pass accountId to isolate sessions by account namespace, then call auth_checkSession.",
+    "Import authenticated 99Freelas cookies from pasted JSON, inline array, or file. If accountId is omitted, infer it from the authenticated 99Freelas username; pass accountId explicitly to isolate multiple accounts.",
   auth_checkSession:
     "Check whether encrypted cookies are loaded for a given accountId namespace. Use before authenticated tools and after auth_importCookies.",
   auth_clearSession: "Clear the currently active session for a given accountId namespace.",
@@ -166,16 +167,19 @@ const toolAnnotations: Record<ToolInputName, ToolAnnotations> = {
 };
 
 const getToolMeta = (toolName: ToolInputName): Record<string, unknown> | undefined => {
-  void toolName;
+  if (toolName === "account_getDashboardSummary") {
+    return getDashboardWidgetMeta();
+  }
   return undefined;
 };
 
-const resolveAccountId = (argsRaw: unknown): string => {
-  if (!argsRaw || typeof argsRaw !== "object") return "default";
+const getExplicitAccountId = (argsRaw: unknown): string | undefined => {
+  if (!argsRaw || typeof argsRaw !== "object") return undefined;
   const accountId = (argsRaw as { accountId?: unknown }).accountId;
-  if (typeof accountId !== "string") return "default";
+  if (typeof accountId !== "string") return undefined;
   const trimmed = accountId.trim();
-  if (!trimmed) return "default";
+  if (!trimmed) return undefined;
+  if (trimmed.toLowerCase() === "default") return undefined;
   return trimmed;
 };
 
@@ -314,6 +318,14 @@ const getScopedServices = async (ctx: AppContext, accountId: string): Promise<Sc
   };
 };
 
+export const getDashboardSummaryForAccount = async (
+  ctx: AppContext,
+  accountId: string,
+): Promise<Awaited<ReturnType<AccountAdapter["getDashboardSummary"]>>> => {
+  const scoped = await getScopedServices(ctx, accountId);
+  return scoped.accountAdapter.getDashboardSummary();
+};
+
 const asStructuredContent = (value: unknown): Record<string, unknown> => {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, unknown>;
@@ -361,10 +373,19 @@ const executeTool = async (
   toolName: ToolInputName,
   argsRaw: unknown,
 ): Promise<unknown> => {
-  const accountId = resolveAccountId(argsRaw);
+  const explicitAccountId = getExplicitAccountId(argsRaw);
+  const resolvedAccountId = explicitAccountId ?? await ctx.sessionManager.getPreferredAccountId();
   const agentId = resolveAgentId(argsRaw);
-  logger.info("tool.call", { toolName, accountId, agentId });
-  await ctx.rateLimiter.consume(`${accountId}:${toolName}`);
+  logger.info("tool.call", { toolName, accountId: resolvedAccountId ?? null, agentId });
+  await ctx.rateLimiter.consume(`${resolvedAccountId ?? "anonymous"}:${toolName}`);
+
+  const requireResolvedAccountId = (): string => {
+    if (resolvedAccountId) return resolvedAccountId;
+    throw new AdapterError(
+      "No active account session resolved. Import cookies first or pass accountId explicitly.",
+      "AUTH_REQUIRED",
+    );
+  };
 
   switch (toolName) {
     case "auth_importCookies": {
@@ -377,6 +398,13 @@ const executeTool = async (
       let username: string | undefined;
       let userId: string | undefined;
       username = await resolveAuthenticatedUsername(ctx.httpClient, cookies);
+      const accountId = explicitAccountId ?? username;
+      if (!accountId) {
+        throw new AdapterError(
+          "Could not infer accountId from the authenticated session. Pass accountId explicitly when importing cookies.",
+          "ACCOUNT_ID_REQUIRED",
+        );
+      }
       const saved = await ctx.sessionManager.createOrUpdateSession({
         accountId,
         cookies,
@@ -399,11 +427,16 @@ const executeTool = async (
       return {
         ok: true,
         sessionId: saved.sessionId,
+        accountId: saved.accountId,
         username,
         cookiesStored: cookies.map((c) => c.name),
       };
     }
     case "auth_checkSession": {
+      if (!resolvedAccountId) {
+        return { ok: true, session: { isAuthenticated: false, cookiesPresent: [] }, verified: false };
+      }
+      const accountId = resolvedAccountId;
       const state = await ctx.sessionManager.checkSession(accountId);
       if (!state.isAuthenticated || state.cookiesPresent.length === 0) {
         return { ok: true, session: state, verified: false };
@@ -414,6 +447,7 @@ const executeTool = async (
       return { ok: true, session: refreshed, verified: alive };
     }
     case "auth_clearSession": {
+      const accountId = requireResolvedAccountId();
       await ctx.sessionManager.clearSession(accountId);
       await ctx.auditLog.append("auth_clearSession", { accountId });
       return { ok: true };
@@ -422,10 +456,12 @@ const executeTool = async (
       return { items: await ctx.sessionManager.listSessions() };
     }
     case "profile_getInterestCatalog": {
+      const accountId = requireResolvedAccountId();
       const scoped = await getScopedServices(ctx, accountId);
       return { items: await scoped.profileAdapter.getInterestCatalog() };
     }
     case "profile_getEditState": {
+      const accountId = requireResolvedAccountId();
       const scoped = await getScopedServices(ctx, accountId);
       return scoped.profileAdapter.getEditState();
     }
@@ -444,6 +480,7 @@ const executeTool = async (
       return { markdown: getSkillSelectionGuideMarkdown() };
     }
     case "profile_update": {
+      const accountId = requireResolvedAccountId();
       const scoped = await getScopedServices(ctx, accountId);
       const args = toolSchemas[toolName].parse(argsRaw);
       const result = await scoped.profileAdapter.update(args);
@@ -460,27 +497,32 @@ const executeTool = async (
       return { items: ctx.projectsAdapter.listCategories() };
     }
     case "projects_list": {
+      const accountId = requireResolvedAccountId();
       const scoped = await getScopedServices(ctx, accountId);
       const args = toolSchemas[toolName].parse(argsRaw);
       const result = await scoped.projectsAdapter.list(args);
       return result;
     }
     case "projects_listByAvailability": {
+      const accountId = requireResolvedAccountId();
       const scoped = await getScopedServices(ctx, accountId);
       const args = toolSchemas[toolName].parse(argsRaw);
       return scoped.projectsAdapter.listByAvailability(args);
     }
     case "projects_get": {
+      const accountId = requireResolvedAccountId();
       const scoped = await getScopedServices(ctx, accountId);
       const args = toolSchemas[toolName].parse(argsRaw);
       return scoped.projectsAdapter.get(args);
     }
     case "projects_getBidContext": {
+      const accountId = requireResolvedAccountId();
       const scoped = await getScopedServices(ctx, accountId);
       const args = toolSchemas[toolName].parse(argsRaw);
       return scoped.projectsAdapter.getBidContext(args);
     }
     case "proposals_send": {
+      const accountId = requireResolvedAccountId();
       const scoped = await getScopedServices(ctx, accountId);
       const args = toolSchemas[toolName].parse(argsRaw);
       let sentToday = 0;
@@ -528,21 +570,25 @@ const executeTool = async (
       };
     }
     case "inbox_listConversations": {
+      const accountId = requireResolvedAccountId();
       const scoped = await getScopedServices(ctx, accountId);
       const args = toolSchemas[toolName].parse(argsRaw);
       return scoped.inboxAdapter.listConversations(args);
     }
     case "inbox_getMessages": {
+      const accountId = requireResolvedAccountId();
       const scoped = await getScopedServices(ctx, accountId);
       const args = toolSchemas[toolName].parse(argsRaw);
       return { items: await scoped.inboxAdapter.getMessages(args) };
     }
     case "inbox_getThread": {
+      const accountId = requireResolvedAccountId();
       const scoped = await getScopedServices(ctx, accountId);
       const args = toolSchemas[toolName].parse(argsRaw);
       return scoped.inboxAdapter.getThread(args);
     }
     case "inbox_sendMessage": {
+      const accountId = requireResolvedAccountId();
       const scoped = await getScopedServices(ctx, accountId);
       const args = toolSchemas[toolName].parse(argsRaw);
       const msgHash = sha256Hex(`${args.conversationId}::${args.text}`);
@@ -557,32 +603,39 @@ const executeTool = async (
       return result;
     }
     case "inbox_getDirectoryCounts": {
+      const accountId = requireResolvedAccountId();
       const scoped = await getScopedServices(ctx, accountId);
       return { counts: await scoped.inboxAdapter.getDirectoryCounts() };
     }
     case "notifications_list": {
+      const accountId = requireResolvedAccountId();
       const scoped = await getScopedServices(ctx, accountId);
       const args = toolSchemas[toolName].parse(argsRaw);
       return scoped.inboxAdapter.listNotifications(args);
     }
     case "account_getConnections": {
+      const accountId = requireResolvedAccountId();
       const scoped = await getScopedServices(ctx, accountId);
       return scoped.accountAdapter.getConnections();
     }
     case "account_getDashboardSummary": {
+      const accountId = requireResolvedAccountId();
       const scoped = await getScopedServices(ctx, accountId);
       return scoped.accountAdapter.getDashboardSummary();
     }
     case "account_getSubscriptionStatus": {
+      const accountId = requireResolvedAccountId();
       const scoped = await getScopedServices(ctx, accountId);
       return scoped.accountAdapter.getSubscriptionStatus();
     }
     case "profiles_get": {
+      const accountId = requireResolvedAccountId();
       const scoped = await getScopedServices(ctx, accountId);
       const args = toolSchemas[toolName].parse(argsRaw);
       return scoped.profileAdapter.getPublicProfile(args);
     }
     case "system_health": {
+      const accountId = resolvedAccountId ?? explicitAccountId ?? "no-session";
       const session = await ctx.sessionManager.checkSession(accountId);
       let connectivity = false;
       try {

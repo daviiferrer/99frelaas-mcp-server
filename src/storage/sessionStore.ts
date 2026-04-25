@@ -11,17 +11,17 @@ export class SessionStore {
     return this.stateDbPromise;
   }
 
-  async getActive(accountId = "default"): Promise<SessionRecord | undefined> {
+  async getActive(accountId: string): Promise<SessionRecord | undefined> {
     const db = await this.getStateDb();
     return db.getActiveSession(accountId);
   }
 
-  async save(record: SessionRecord, accountId = "default"): Promise<void> {
+  async save(record: SessionRecord, accountId: string): Promise<void> {
     const db = await this.getStateDb();
     await db.saveSession(accountId, record);
   }
 
-  async clearActive(accountId = "default"): Promise<void> {
+  async clearActive(accountId: string): Promise<void> {
     const db = await this.getStateDb();
     await db.clearActiveSession(accountId);
   }

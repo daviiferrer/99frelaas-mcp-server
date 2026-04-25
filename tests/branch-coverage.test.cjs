@@ -99,7 +99,7 @@ test("session manager unauthenticated state", async () => {
     const { CookieStore } = require("../dist/auth/cookieStore.js");
     const { SessionManager } = require("../dist/auth/sessionManager.js");
     const manager = new SessionManager(new SessionStore(), new CookieStore());
-    const state = await manager.checkSession();
+    const state = await manager.checkSession("missing-account");
     assert.equal(state.isAuthenticated, false);
   } finally {
     const { StateDatabase } = require("../dist/storage/stateDatabase.js");

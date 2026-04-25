@@ -11,6 +11,10 @@ export type HttpServerOptions = {
   port: number;
   mcpPath?: string;
   githubWebhook?: GithubWebhookConfig;
+  dashboardPreview?: {
+    path?: string;
+    render: (accountId: string, requestUrl: URL) => Promise<string>;
+  };
 };
 
 export type RunningHttpServer = {
@@ -79,6 +83,8 @@ const getRequestPath = (req: IncomingMessage): string => {
   return url.pathname;
 };
 
+const getRequestUrl = (req: IncomingMessage): URL => new URL(req.url ?? "/", "http://localhost");
+
 export const startHttpServer = async (
   createMcpServer: () => Server,
   options: HttpServerOptions,
@@ -96,10 +102,22 @@ export const startHttpServer = async (
 
   const httpServer = createNodeHttpServer(async (req, res) => {
     try {
-      const path = getRequestPath(req);
+      const requestUrl = getRequestUrl(req);
+      const path = requestUrl.pathname;
 
       if (req.method === "GET" && path === "/healthz") {
         sendJson(res, 200, { ok: true, transport: "http" });
+        return;
+      }
+
+      if (req.method === "GET" && options.dashboardPreview && path === (options.dashboardPreview.path ?? "/ui/dashboard")) {
+        const accountId = requestUrl.searchParams.get("accountId")?.trim() || "";
+        const html = await options.dashboardPreview.render(accountId, requestUrl);
+        res.writeHead(200, {
+          "content-type": "text/html; charset=utf-8",
+          "content-length": Buffer.byteLength(html).toString(),
+        });
+        res.end(html);
         return;
       }
 

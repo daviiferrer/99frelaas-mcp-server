@@ -24,8 +24,11 @@ export class SessionManager {
     username?: string;
     cookies: Cookie[];
     accountId?: string;
-  }): Promise<{ sessionId: string }> {
-    const accountId = input.accountId ?? "default";
+  }): Promise<{ sessionId: string; accountId: string }> {
+    const accountId = input.accountId?.trim() || input.username?.trim();
+    if (!accountId?.trim()) {
+      throw new Error("accountId or username is required to create or update a session");
+    }
     logger.info("session.upsert.start", { accountId, cookieCount: input.cookies.length });
     const active = await this.sessionStore.getActive(accountId);
     const sessionId = active?.sessionId ?? `sess_${randomUUID()}`;
@@ -41,10 +44,10 @@ export class SessionManager {
       accountId,
     );
     logger.info("session.upsert.ok", { accountId, sessionId, reused: Boolean(active?.sessionId) });
-    return { sessionId };
+    return { sessionId, accountId };
   }
 
-  async requireCookies(accountId = "default"): Promise<Cookie[]> {
+  async requireCookies(accountId: string): Promise<Cookie[]> {
     logger.debug("session.require.start", { accountId });
     const active = await this.sessionStore.getActive(accountId);
     if (!active || active.cookies.length === 0) {
@@ -77,7 +80,7 @@ export class SessionManager {
     return validCookies;
   }
 
-  async checkSession(accountId = "default"): Promise<SessionState> {
+  async checkSession(accountId: string): Promise<SessionState> {
     logger.debug("session.check.start", { accountId });
     const active = await this.sessionStore.getActive(accountId);
     if (!active) {
@@ -111,9 +114,15 @@ export class SessionManager {
     };
   }
 
-  async clearSession(accountId = "default"): Promise<void> {
+  async clearSession(accountId: string): Promise<void> {
     logger.info("session.clear", { accountId });
     await this.sessionStore.clearActive(accountId);
+  }
+
+  async getPreferredAccountId(): Promise<string | undefined> {
+    const sessions = await this.sessionStore.listSessions();
+    const activeSessions = sessions.filter((session) => session.active);
+    return activeSessions[0]?.accountId;
   }
 
   async listSessions(): Promise<Array<{

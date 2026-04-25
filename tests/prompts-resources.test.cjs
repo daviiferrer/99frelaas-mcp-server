@@ -26,6 +26,9 @@ test("prompts and resources are exposed", async () => {
         return { isAuthenticated: true, cookiesPresent: ["JSESSIONID"], sessionId: "sess_01" };
       },
       async clearSession() {},
+      async getPreferredAccountId() {
+        return "test-account";
+      },
     },
     httpClient: {
       setCookies() {},
@@ -81,7 +84,7 @@ test("prompts and resources are exposed", async () => {
   const resources = await client.listResources();
   assert.equal(resources.resources.length >= 7, true);
   assert.equal(resources.resources.some((resource) => resource.uri === "resource://99freelas/server-manifest"), true);
-  assert.equal(resources.resources.some((resource) => resource.uri.startsWith("ui://")), false);
+  assert.equal(resources.resources.some((resource) => resource.uri.startsWith("ui://")), true);
 
   const tools = await client.listTools();
   const projectsTool = tools.tools.find((tool) => tool.name === "projects_list");

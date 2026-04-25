@@ -304,7 +304,7 @@ export class StateDatabase {
     this.db.prepare(sql).run(accountId, messageHash, createdAt);
   }
 
-  async getActiveSession(accountId = "default"): Promise<SessionRecord | undefined> {
+  async getActiveSession(accountId: string): Promise<SessionRecord | undefined> {
     await this.ensureInitialized();
     const row = this.db.prepare(
       `
@@ -383,7 +383,7 @@ export class StateDatabase {
     });
   }
 
-  async clearActiveSession(accountId = "default"): Promise<void> {
+  async clearActiveSession(accountId: string): Promise<void> {
     await this.ensureInitialized();
     this.db.prepare("DELETE FROM sessions WHERE accountId = ?").run(accountId);
   }

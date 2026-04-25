@@ -33,11 +33,11 @@ test("session store save/get/clear", async () => {
     sessionId: "s1",
     updatedAt: new Date().toISOString(),
     cookies: [],
-  });
-  const active = await store.getActive();
+  }, "acc_store");
+  const active = await store.getActive("acc_store");
   assert.equal(active.sessionId, "s1");
-  await store.clearActive();
-  const after = await store.getActive();
+  await store.clearActive("acc_store");
+  const after = await store.getActive("acc_store");
   assert.equal(after, undefined);
 });
 
@@ -114,17 +114,17 @@ test("cookie store and session manager", async () => {
     cookies: [{ name: "JSESSIONID", value: "v", domain: ".99freelas.com.br", path: "/" }],
   });
 
-  const state = await manager.checkSession();
+  const state = await manager.checkSession("u");
   assert.equal(state.isAuthenticated, true);
   assert.equal(state.userId, "1");
   assert.equal(state.username, "u");
   assert.ok(state.sessionId);
-  assert.deepEqual(await manager.requireCookies(), [
+  assert.deepEqual(await manager.requireCookies("u"), [
     { name: "JSESSIONID", value: "v", domain: ".99freelas.com.br", path: "/", expires: undefined, secure: undefined, httpOnly: undefined },
   ]);
 
-  await manager.clearSession();
-  await assert.rejects(() => manager.requireCookies());
+  await manager.clearSession("u");
+  await assert.rejects(() => manager.requireCookies("u"));
 });
 
 test("session manager stores username by accountId", async () => {
@@ -203,7 +203,7 @@ test("session store migrates legacy single-account file", async () => {
     "utf8",
   );
   const store = new SessionStore();
-  const active = await store.getActive();
+  const active = await store.getActive("default");
   assert.equal(active.sessionId, "legacy_s1");
 });
 

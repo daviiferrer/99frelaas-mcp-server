@@ -15,6 +15,7 @@ import {
   getSkillSelectionGuideMarkdown,
   getSkillStacksResourceMarkdown,
 } from "../domain/skillsCatalog";
+import { dashboardWidgetResource, getDashboardWidgetUri, readDashboardWidgetResource } from "./dashboardWidget";
 
 const BASE_URL = process.env.NINETY_NINE_BASE_URL ?? "https://www.99freelas.com.br";
 
@@ -150,6 +151,7 @@ const promptCatalog: Array<
 ];
 
 const resourceCatalog: Resource[] = [
+  dashboardWidgetResource,
   {
     uri: "resource://99freelas/server-manifest",
     name: "server-manifest",
@@ -284,6 +286,8 @@ const promptResult = (name: PromptName, args: Record<string, string> | undefined
 
 const resourceText = (uri: string): string => {
   switch (uri) {
+    case getDashboardWidgetUri():
+      throw new Error(`Use readDashboardWidgetResource for ${uri}`);
     case "resource://99freelas/server-manifest":
       return JSON.stringify(
         {
@@ -488,11 +492,15 @@ export const listProductResourceTemplates = (): ListResourceTemplatesResult => (
 });
 
 export const readProductResource = (uri: string): ReadResourceResult => ({
-  contents: [
-    {
-      uri,
-      mimeType: resourceMimeType(uri),
-      text: resourceText(uri),
-    },
-  ],
+  ...(uri === getDashboardWidgetUri()
+    ? readDashboardWidgetResource()
+    : {
+        contents: [
+          {
+            uri,
+            mimeType: resourceMimeType(uri),
+            text: resourceText(uri),
+          },
+        ],
+      }),
 });

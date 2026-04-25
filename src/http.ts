@@ -2,6 +2,8 @@ import "dotenv/config";
 import { buildAppContext, buildServer } from "./index";
 import { loadGithubWebhookConfig } from "./deploy/githubWebhook";
 import { logger } from "./security/logger";
+import { getDashboardSummaryForAccount } from "./server/createServer";
+import { renderDashboardPreviewHtml } from "./server/dashboardWidget";
 import { startHttpServer } from "./transport/http";
 
 export const runHttp = async (): Promise<void> => {
@@ -26,6 +28,26 @@ export const runHttp = async (): Promise<void> => {
     port,
     mcpPath,
     githubWebhook,
+    dashboardPreview: {
+      path: "/ui/dashboard",
+      render: async (accountId, requestUrl) => {
+        try {
+          const resolvedAccountId = accountId || await appContext.sessionManager.getPreferredAccountId();
+          if (!resolvedAccountId) {
+            return renderDashboardPreviewHtml(null);
+          }
+
+          const payload = await getDashboardSummaryForAccount(appContext, resolvedAccountId);
+          return renderDashboardPreviewHtml(payload);
+        } catch (error) {
+          logger.warn("dashboard.preview.render.fallback", {
+            accountId,
+            error: String(error),
+          });
+          return renderDashboardPreviewHtml(null);
+        }
+      },
+    },
   });
 
   const shutdown = async (signal: string) => {

@@ -38,16 +38,17 @@ test("mock stress suite covers all tools in parallel across accounts", async () 
 
   const ctx = {
     sessionManager: {
-      async requireCookies(accountId = "default") {
+      async requireCookies(accountId) {
         const cookies = [{ name: "sgcn", value: `cookie-${accountId}`, domain: ".99freelas.com.br" }];
         cookiesByAccount.set(accountId, cookies);
         return cookies;
       },
-      async createOrUpdateSession({ accountId = "default", cookies = [] }) {
-        cookiesByAccount.set(accountId, cookies);
-        return { sessionId: `session-${accountId}` };
+      async createOrUpdateSession({ accountId, username, cookies = [] }) {
+        const savedAccountId = accountId ?? username ?? "stress-account";
+        cookiesByAccount.set(savedAccountId, cookies);
+        return { sessionId: `session-${savedAccountId}`, accountId: savedAccountId };
       },
-      async checkSession(accountId = "default") {
+      async checkSession(accountId) {
         return {
           isAuthenticated: true,
           cookiesPresent: ["sgcn"],
@@ -56,6 +57,9 @@ test("mock stress suite covers all tools in parallel across accounts", async () 
         };
       },
       async clearSession() {},
+      async getPreferredAccountId() {
+        return "stress-account";
+      },
     },
     httpClient: {
       setCookies() {},
@@ -77,6 +81,7 @@ test("mock stress suite covers all tools in parallel across accounts", async () 
           body = JSON.stringify({ status: { id: 1 } });
         } else if (path.includes("/profile/edit")) {
           body = `
+            <a href="/user/stress-account">Meu perfil</a>
             <h2 class="item-title">Vendas & Marketing</h2>
             <div class="items"><label for="chk101"><input id="chk101" type="checkbox" /><span>Marketing Digital</span></label></div>
             <input id="nome" value="Carlos Vieira" />

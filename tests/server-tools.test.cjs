@@ -44,18 +44,21 @@ test("server tools end-to-end in memory", async () => {
     cookiesPresent: [],
     sessionId: undefined,
     username: undefined,
+    accountId: undefined,
   };
   const sentProposals = new Set();
   const sentMsgs = new Set();
 
   const ctx = {
     sessionManager: {
-      async createOrUpdateSession({ username }) {
+      async createOrUpdateSession({ accountId, username }) {
+        const savedAccountId = accountId ?? username;
+        state.accountId = savedAccountId;
         state.isAuthenticated = true;
         state.cookiesPresent = ["JSESSIONID"];
         state.sessionId = "sess_01";
         state.username = username;
-        return { sessionId: "sess_01" };
+        return { sessionId: "sess_01", accountId: savedAccountId };
       },
       async requireCookies() {
         if (!state.isAuthenticated) throw new Error("No active authenticated session");
@@ -72,6 +75,10 @@ test("server tools end-to-end in memory", async () => {
       async clearSession() {
         state.isAuthenticated = false;
         state.cookiesPresent = [];
+        state.accountId = undefined;
+      },
+      async getPreferredAccountId() {
+        return state.accountId;
       },
     },
     httpClient: {
@@ -199,6 +206,7 @@ test("server tools end-to-end in memory", async () => {
   }));
   assert.equal(out.ok, true);
   assert.equal(out.sessionId, "sess_01");
+  assert.equal(out.accountId, "carlos-vieira-mkt");
   assert.equal(out.username, "carlos-vieira-mkt");
 
   out = parseToolText(await client.callTool({ name: "profile_getInterestCatalog", arguments: {} }));
@@ -266,7 +274,7 @@ test("server tools end-to-end in memory", async () => {
 
   const { localDateKey } = require("../dist/utils/time.js");
   const today = localDateKey(new Date(), "America/Sao_Paulo");
-  ctx.proposalDayCounter.set(`default:${today}:proposals`, 5);
+  ctx.proposalDayCounter.set(`carlos-vieira-mkt:${today}:proposals`, 5);
   const limitHit = await client.callTool({
     name: "proposals_send",
     arguments: {
@@ -337,6 +345,9 @@ test("system.health handles connectivity errors", async () => {
         return { isAuthenticated: false, cookiesPresent: [] };
       },
       async clearSession() {},
+      async getPreferredAccountId() {
+        return undefined;
+      },
     },
     httpClient: {
       setCookies() {},
@@ -389,6 +400,9 @@ test("authenticated tools keep cookies when session probe is inconclusive", asyn
       },
       async clearSession() {
         clearCount += 1;
+      },
+      async getPreferredAccountId() {
+        return "probe-account";
       },
     },
     httpClient: {
@@ -464,14 +478,17 @@ test("authenticated tools auto-import manual cookies fallback", async () => {
       async requireCookies() {
         throw new Error("missing session");
       },
-      async createOrUpdateSession({ cookies }) {
+      async createOrUpdateSession({ accountId, cookies }) {
         imported = cookies.length;
-        return { sessionId: "fallback_sess" };
+        return { sessionId: "fallback_sess", accountId };
       },
       async checkSession() {
         return { isAuthenticated: false, cookiesPresent: [] };
       },
       async clearSession() {},
+      async getPreferredAccountId() {
+        return "fallback-account";
+      },
     },
     httpClient: {
       setCookies(cookies) {

@@ -12,8 +12,11 @@ COPY tsconfig.json ./
 COPY src ./src
 COPY tests ./tests
 COPY scripts ./scripts
+COPY assets ./assets
+COPY web ./web
 COPY README.md ./
 RUN npm run build
+RUN npm run web:build
 
 FROM node:24-bookworm-slim AS runtime
 WORKDIR /app
@@ -25,6 +28,7 @@ RUN apt-get update \
 COPY package*.json ./
 RUN npm ci --ignore-scripts --omit=dev
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/web/dist ./web/dist
 COPY --from=build /app/README.md ./README.md
 COPY data ./data
 RUN mkdir -p /app/.data \
